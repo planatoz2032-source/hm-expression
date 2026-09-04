@@ -9,6 +9,7 @@
   --color-success-dark: #2aa652;
   --color-warning: #ff6b6b;
   --color-warning-dark: #e34d4d;
+  --color-accent-purple: #7c5cff;
   --color-card-bg: #ffffff;
   --color-text: #3a2e2e;
   --color-text-soft: #7a6f6f;
@@ -213,7 +214,9 @@ main#app {
 /* ---------- 카드 1장씩 보여주는 학습 카드 ---------- */
 .single-card-wrap {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
 }
 
 .stage-card {
@@ -289,7 +292,6 @@ main#app {
   gap: 8px;
 }
 .choice-btn:hover { background: #fff1e4; }
-.choice-btn-emoji { font-size: 2rem; padding: 10px 16px; }
 
 .round-complete-banner {
   text-align: center;
@@ -399,17 +401,22 @@ main#app {
   border-color: var(--color-secondary);
   background: #eef8ff;
 }
-.current-badge {
+.situation-person.is-other {
+  border-color: var(--color-accent-purple);
+  background: #f6f1ff;
+}
+.role-badge {
   display: block;
   font-size: 0.7rem;
   font-weight: 800;
   color: white;
-  background: var(--color-secondary);
   border-radius: 999px;
   padding: 3px 10px;
   margin: 0 auto 8px;
   width: fit-content;
 }
+.role-badge.role-current { background: var(--color-secondary); }
+.role-badge.role-other { background: var(--color-accent-purple); }
 .situation-person .card-emoji { font-size: 3.5rem; }
 .situation-person h4 { margin: 8px 0 4px; }
 .situation-person p { font-size: 0.9rem; color: var(--color-text-soft); }
