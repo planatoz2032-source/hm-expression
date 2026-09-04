@@ -1,11 +1,12 @@
 /* =========================================================
-   표정 맞추기 게임 (Emotion Match) — 웹 초안 (MVP)
-   PRD.md 기준 구현. 데이터는 별도 fetch 없이 이 파일에 내장해
-   file:// 로 그냈이 열어도 동작하도록 함.
+   표정 맞추기 게임 (Emotion Match) — 웹 초안 (MVP, v2)
+   PRD.md + 사용자 협의 반영: 카드 그리드 매칭 대신,
+   감정 1개씩 카드로 넘기며 이모지→뜻→실사→상황 순으로
+   정보가 쌓이는 학습형 플로우로 재구성.
+   데이터는 fetch 없이 이 파일에 내장 (file:// 로도 동작).
    ========================================================= */
 
 /* ---------- 1. 데이터: 감정 31개 ---------- */
-// id는 감정 단어 자체를 사용 (photos 폴더 파일명과 동일하게 맞춰 참조)
 const EMOTIONS = [
   { id: "감격하다", emoji: "🥹", desc: "너무 좋아서 눈물이 날 것 같은 마음", example: "오래 연습한 걸 성공했을 때" },
   { id: "걱정하다", emoji: "😟", desc: "안 좋은 일이 생길까 봐 불안한 마음", example: "엄마가 늦게 올 때" },
@@ -46,8 +47,9 @@ EMOTIONS.forEach(e => {
   e.photo = MISSING_PHOTOS.has(e.id) ? null : `assets/images/photos/${e.id}.jpg`;
 });
 const EMOTION_MAP = Object.fromEntries(EMOTIONS.map(e => [e.id, e]));
+const ALL_EMOTION_IDS = EMOTIONS.map(e => e.id);
 
-/* ---------- 2. 상황 카드 데이터 (우선순위 8개 감정, PRD 4.3 / 6.1) ---------- */
+/* ---------- 2. 상황 카드 데이터 (우선순위 8개 감정, PRD 4.3 / 6장) ---------- */
 const SITUATIONS = [
   {
     id: "toy-turn",
@@ -75,15 +77,15 @@ const SITUATIONS = [
   },
 ];
 
-// emotionId -> situationId 역인덱스 (해당 감정을 맞히면 "상황보기" 버튼 노출)
+// emotionId -> situationId 역인덱스 (해당 감정 카드에서 상황 단계 노출 여부 판단용)
 const EMOTION_TO_SITUATION = {};
 SITUATIONS.forEach(s => {
   EMOTION_TO_SITUATION[s.a.emotionId] = s.id;
   EMOTION_TO_SITUATION[s.b.emotionId] = s.id;
 });
 
-/* ---------- 3. 로컬 저장소 ---------- */
-const STORAGE_KEY = "emotionMatch_wrongSet_v1";
+/* ---------- 3. 로컬 저장소 (오답노트) ---------- */
+const STORAGE_KEY = "emotionMatch_wrongSet_v2";
 
 function getWrongSet() {
   try {
@@ -179,22 +181,87 @@ function launchConfetti() {
   }
 }
 
-/* ---------- 6. 게임 상태 ---------- */
+function shakeEl(el) {
+  if (!el) return;
+  el.classList.add("shake");
+  setTimeout(() => el.classList.remove("shake"), 400);
+}
+
+/* ---------- 6. 게임 상태 ----------
+   카드(감정)는 한 번에 하나씩만 보여주고, 누를 때마다 정보가 쌓인다.
+   모드 A 순서: 이모지 → 뜻카드 → 실사 표정 → (있으면) 상황카드
+   모드 B 순서: 실사 표정 → 뜻카드 → 이모지 → (있으면) 상황카드
+   1단계에서만 선택지 퀴즈로 정답 판정, 이후 단계는 눌러서 정보 확장.
+------------------------------------ */
 const ROUND_SIZE = 8;
-const state = {
-  mode: "A", // "A": 표정 먼저 공개 → 단어 맞히기 / "B": 단어 먼저 공개 → 표정 맞히기
-  roundEmotions: [],
-  matched: new Set(),
-  selectedCardId: null, // 아이가 먼저 고른 카드 (정답 판정의 기준)
+const QUIZ_CHOICE_COUNT = 4;
+
+const LAYER_ORDER = {
+  A: ["emoji", "word", "photo"],
+  B: ["photo", "word", "emoji"],
 };
+
+const state = {
+  mode: "A",
+  roundEmotions: [],
+  currentIndex: 0,
+  stage: 1,             // 1~3: 정보 누적 단계 / 4: 상황(+표정 따라하기) 단계
+  situationSub: null,   // stage 4일 때: 'scene' | 'closing'
+  quizChoices: [],
+};
+
+function currentEmotion() {
+  return EMOTION_MAP[state.roundEmotions[state.currentIndex]];
+}
+function hasSituation(emotionId) {
+  return !!EMOTION_TO_SITUATION[emotionId];
+}
+function maxStageFor(emotionId) {
+  return hasSituation(emotionId) ? 4 : 3;
+}
+
+function buildQuizChoices(correctId) {
+  const distractors = sampleN(ALL_EMOTION_IDS.filter(id => id !== correctId), QUIZ_CHOICE_COUNT - 1);
+  return shuffle([correctId, ...distractors]);
+}
 
 function startRound(mode, presetEmotions) {
   state.mode = mode;
   state.roundEmotions = presetEmotions && presetEmotions.length
     ? presetEmotions
-    : sampleN(EMOTIONS.map(e => e.id), ROUND_SIZE);
-  state.matched = new Set();
-  state.selectedCardId = null;
+    : sampleN(ALL_EMOTION_IDS, ROUND_SIZE);
+  enterCard(0);
+}
+
+function enterCard(index) {
+  state.currentIndex = index;
+  state.stage = 1;
+  state.situationSub = null;
+  if (index < state.roundEmotions.length) {
+    state.quizChoices = buildQuizChoices(state.roundEmotions[index]);
+  }
+  renderGame();
+}
+
+function goToNextCard() {
+  enterCard(state.currentIndex + 1);
+}
+
+function advanceStage() {
+  const emotion = currentEmotion();
+  const max = maxStageFor(emotion.id);
+  playFlip();
+  if (state.stage < max) {
+    state.stage += 1;
+    if (state.stage === 4) state.situationSub = "scene";
+    renderGame();
+  } else {
+    goToNextCard();
+  }
+}
+
+function goToClosing() {
+  state.situationSub = "closing";
   renderGame();
 }
 
@@ -205,19 +272,19 @@ function renderHome() {
   app.innerHTML = `
     <section class="home-hero">
       <h2>오늘은 어떤 표정을 만나볼까요?</h2>
-      <p>표정과 감정 단어를 맞춰보며 마음을 알아가요.</p>
+      <p>표정과 감정 단어를 하나씩 살펴보며 마음을 알아가요.</p>
     </section>
     <div class="mode-grid">
       <div class="mode-card">
-        <span class="mode-emoji">😊➡️🔤</span>
+        <span class="mode-emoji">😊<span class="plain-arrow">→</span>🔤</span>
         <h3>모드 A</h3>
-        <p>표정을 먼저 보고, 어울리는 감정 단어를 찾아요.</p>
+        <p>이모지 표정부터 차례대로 살펴보며 감정을 배워요.</p>
         <button class="btn btn-primary" id="start-mode-a">모드 A 시작</button>
       </div>
       <div class="mode-card">
-        <span class="mode-emoji">🔤➡️😊</span>
+        <span class="mode-emoji">🔤<span class="plain-arrow">→</span>😊</span>
         <h3>모드 B</h3>
-        <p>감정 단어를 먼저 보고, 어울리는 표정을 찾아요.</p>
+        <p>실사 표정부터 차례대로 살펴보며 감정을 배워요.</p>
         <button class="btn btn-secondary" id="start-mode-b">모드 B 시작</button>
       </div>
     </div>
@@ -233,193 +300,175 @@ function renderHome() {
   document.getElementById("goto-dictionary-home").onclick = renderDictionary;
 }
 
-function cardVisualHTML(emotion, revealed) {
-  if (!revealed) return `<div class="card-emoji">❓</div>`;
-  const photoHTML = emotion.photo
-    ? `<img class="card-photo" src="${emotion.photo}" alt="${emotion.id} 표정 사진" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'card-photo-missing',textContent:'사진 준비중'}))">`
-    : `<div class="card-photo-missing">사진<br>준비중</div>`;
-  return `<div class="card-emoji">${emotion.emoji}</div>${photoHTML}`;
+/* ----- 레이어(이모지/뜻/실사) HTML ----- */
+function photoHTML(emotion, size = 160) {
+  const style = `width:${size}px;height:${size}px;`;
+  return emotion.photo
+    ? `<img class="stage-photo" style="${style}" src="${emotion.photo}" alt="${emotion.id} 표정 사진" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'stage-photo stage-photo-missing',textContent:'사진 준비중'}))">`
+    : `<div class="stage-photo stage-photo-missing" style="${style}">사진<br>준비중</div>`;
 }
 
-function renderGame() {
-  const { mode, roundEmotions, matched, selectedCardId } = state;
-  const cardsHTML = roundEmotions.map(id => {
-    const emotion = EMOTION_MAP[id];
-    const isMatched = matched.has(id);
-    const isSelected = selectedCardId === id;
-    // 모드 A: 카드에 표정이 처음부터 공개, 정답 확정 시 단어 라벨 표시
-    // 모드 B: 카드에 단어가 처음부터 공개, 정답 확정 시 표정 라벨(이미지/이모지) 표시
-    const visual = mode === "A" ? cardVisualHTML(emotion, true) : (isMatched ? cardVisualHTML(emotion, true) : `<div class="card-emoji">🃏</div>`);
-    const label = mode === "A" ? (isMatched ? emotion.id : "?") : emotion.id;
-    const situationBtn = (isMatched && EMOTION_TO_SITUATION[id])
-      ? `<button class="card-situation-btn" data-situation="${EMOTION_TO_SITUATION[id]}">상황보기</button>`
-      : "";
-    const stateClass = isMatched ? "is-matched" : (isSelected ? "is-selected" : "");
-    return `
-      <div class="match-card ${stateClass}" data-card-id="${id}">
-        <div class="card-visual">${visual}</div>
-        <div class="card-label ${label === "?" || label === "" ? "placeholder" : ""}">${label}</div>
-        ${situationBtn}
-      </div>`;
-  }).join("");
+function renderLayer(type, emotion) {
+  if (type === "emoji") return `<div class="stage-emoji">${emotion.emoji}</div>`;
+  if (type === "photo") return photoHTML(emotion);
+  if (type === "word") return `
+    <div class="stage-word-box">
+      <h3>${emotion.id}</h3>
+      <p>${emotion.desc}</p>
+    </div>`;
+  return "";
+}
 
-  const choiceIds = shuffle(roundEmotions);
-  const choicesHTML = choiceIds.map(id => {
-    const emotion = EMOTION_MAP[id];
-    const used = state.matched.has(id);
-    if (mode === "A") {
-      return `<button class="choice-btn ${used ? "used" : ""}" data-choice-id="${id}">${emotion.id}</button>`;
-    }
-    const photoOrEmoji = emotion.photo
-      ? `<img class="choice-photo" src="${emotion.photo}" alt="${emotion.id}" onerror="this.style.display='none'">`
-      : "";
-    return `<button class="choice-btn ${used ? "used" : ""}" data-choice-id="${id}">${photoOrEmoji}<span class="card-emoji" style="font-size:1.6rem">${emotion.emoji}</span></button>`;
-  }).join("");
-
-  const allDone = state.matched.size === roundEmotions.length;
+function quizRowHTML(emotion, mode) {
   const instruction = mode === "A"
-    ? "① 표정 카드를 골라보세요 → ② 어울리는 감정 단어를 눌러요"
-    : "① 감정 단어 카드를 골라보세요 → ② 어울리는 표정을 눌러요";
+    ? "이 표정에 어울리는 감정 단어를 골라보세요"
+    : "이 사진과 어울리는 표정을 골라보세요";
+  const choicesHTML = state.quizChoices.map(id => {
+    const e = EMOTION_MAP[id];
+    return mode === "A"
+      ? `<button class="choice-btn" data-quiz-id="${id}">${e.id}</button>`
+      : `<button class="choice-btn choice-btn-emoji" data-quiz-id="${id}">${e.emoji}</button>`;
+  }).join("");
+  return `
+    <p class="game-instruction">${instruction}</p>
+    <div class="choice-row">${choicesHTML}</div>`;
+}
 
-  app.innerHTML = `
-    <div class="game-toolbar">
-      <span class="game-progress">맞춘 카드: ${state.matched.size} / ${roundEmotions.length}</span>
-      <button class="btn btn-plain" id="btn-new-round">🔄 새 라운드</button>
-    </div>
-    ${allDone ? "" : `<p class="game-instruction">${instruction}</p>`}
-    <div class="card-grid">${cardsHTML}</div>
-    ${allDone ? "" : `<div class="choice-row">${choicesHTML}</div>`}
-    ${allDone ? `
-      <div class="round-complete-banner">
-        🎉 라운드 완료! 정말 잘했어요! 🎉
-        <div style="margin-top:14px;">
-          <button class="btn btn-success btn-big" id="btn-next-round">다음 라운드</button>
+function situationHTML(emotion) {
+  const situation = SITUATIONS.find(s => s.id === EMOTION_TO_SITUATION[emotion.id]);
+  const a = EMOTION_MAP[situation.a.emotionId];
+  const b = EMOTION_MAP[situation.b.emotionId];
+  const aIsCurrent = situation.a.emotionId === emotion.id;
+  return `
+    <div class="situation-card">
+      <h3>어떤 상황일까요?</h3>
+      <p class="situation-desc">${situation.desc}</p>
+      <div class="situation-scene">
+        <div class="situation-person ${aIsCurrent ? "is-current" : ""}">
+          ${aIsCurrent ? '<span class="current-badge">지금 배우는 감정</span>' : ""}
+          <div class="card-emoji">${a.emoji}</div>
+          <h4>${a.id}</h4>
+          <p>"${situation.a.line}"</p>
         </div>
-      </div>` : ""}
-  `;
-
-  document.getElementById("btn-new-round").onclick = () => startRound(mode);
-  if (allDone) {
-    document.getElementById("btn-next-round").onclick = () => startRound(mode);
-    launchConfetti();
-    playCelebration();
-  }
-
-  app.querySelectorAll(".card-situation-btn").forEach(btn => {
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      openSituation(btn.dataset.situation);
-    };
-  });
-
-  if (!allDone) {
-    app.querySelectorAll(".match-card").forEach(cardEl => {
-      const id = cardEl.dataset.cardId;
-      if (!state.matched.has(id)) {
-        cardEl.classList.add("is-selectable");
-        cardEl.onclick = () => selectCard(id);
-      }
-    });
-    app.querySelectorAll(".choice-btn").forEach(btn => {
-      btn.onclick = () => handleChoice(btn.dataset.choiceId, btn);
-    });
-  }
+        <div class="situation-person ${!aIsCurrent ? "is-current" : ""}">
+          ${!aIsCurrent ? '<span class="current-badge">지금 배우는 감정</span>' : ""}
+          <div class="card-emoji">${b.emoji}</div>
+          <h4>${b.id}</h4>
+          <p>"${situation.b.line}"</p>
+        </div>
+      </div>
+      <p class="situation-note">같은 상황에서도 사람마다 다르게 느낄 수 있어요.</p>
+      <button class="btn btn-secondary btn-big" id="btn-goto-closing">다음: 표정 따라하기</button>
+    </div>`;
 }
 
-function selectCard(id) {
-  if (state.matched.has(id)) return;
-  state.selectedCardId = state.selectedCardId === id ? null : id;
-  renderGame();
-}
-
-function shakeEl(el) {
-  if (!el) return;
-  el.classList.add("shake");
-  setTimeout(() => el.classList.remove("shake"), 400);
-}
-
-function handleChoice(chosenId, btnEl) {
-  if (state.matched.has(chosenId)) return;
-  const target = state.selectedCardId;
-  if (!target) {
-    // 아직 카드를 고르지 않았어요 — 살짝 흔들어 안내
-    shakeEl(btnEl);
-    return;
-  }
-  playFlip();
-  if (chosenId === target) {
-    state.matched.add(target);
-    state.selectedCardId = null;
-    playCorrect();
-    renderGame();
-  } else {
-    addWrong(target);
-    playWrong();
-    shakeEl(document.querySelector(`.match-card[data-card-id="${target}"]`));
-    shakeEl(btnEl);
-  }
-}
-
-/* ---------- 8. 상황보기 & 표정 따라하기 클로징 카드 ---------- */
-function openSituation(situationId) {
-  const situation = SITUATIONS.find(s => s.id === situationId);
-  if (!situation) return;
-  const modal = document.getElementById("situation-modal");
-  const content = document.getElementById("situation-content");
-  renderSituationScene(situation, content);
-  modal.hidden = false;
-}
-
-function renderSituationScene(situation, content) {
+function closingHTML(emotion) {
+  const situation = SITUATIONS.find(s => s.id === EMOTION_TO_SITUATION[emotion.id]);
   const a = EMOTION_MAP[situation.a.emotionId];
   const b = EMOTION_MAP[situation.b.emotionId];
-  content.innerHTML = `
-    <h2>어떤 상황일까요?</h2>
-    <p class="situation-desc">${situation.desc}</p>
-    <div class="situation-scene">
-      <div class="situation-person">
-        <div class="card-emoji">${a.emoji}</div>
-        <h4>${a.id}</h4>
-        <p>"${situation.a.line}"</p>
-      </div>
-      <div class="situation-person">
-        <div class="card-emoji">${b.emoji}</div>
-        <h4>${b.id}</h4>
-        <p>"${situation.b.line}"</p>
-      </div>
-    </div>
-    <p style="color:var(--color-text-soft)">같은 상황에서도 사람마다 다르게 느낄 수 있어요.</p>
-    <button class="btn btn-secondary btn-big" id="btn-goto-closing">다음: 표정 따라하기</button>
-  `;
-  document.getElementById("btn-goto-closing").onclick = () => renderClosingCard(situation, content);
-}
-
-function renderClosingCard(situation, content) {
-  const a = EMOTION_MAP[situation.a.emotionId];
-  const b = EMOTION_MAP[situation.b.emotionId];
-  content.innerHTML = `
-    <div class="closing-card">
-      <h2>${a.id}와 ${b.id}의 표정을 따라해 보세요!</h2>
+  return `
+    <div class="situation-card closing-card">
+      <h3>${a.id}와 ${b.id}의 표정을 따라해 보세요!</h3>
       <div class="situation-scene">
         <div class="situation-person"><div class="card-emoji" style="font-size:4.5rem">${a.emoji}</div><h4>${a.id}</h4></div>
         <div class="situation-person"><div class="card-emoji" style="font-size:4.5rem">${b.emoji}</div><h4>${b.id}</h4></div>
       </div>
       <button class="btn btn-success btn-big" id="btn-done-closing">다 해봤어요!</button>
-    </div>
-  `;
-  document.getElementById("btn-done-closing").onclick = () => {
-    document.getElementById("situation-modal").hidden = true;
-  };
+    </div>`;
 }
 
-/* ---------- 9. 감정도감 ---------- */
+function renderGame() {
+  if (state.currentIndex >= state.roundEmotions.length) {
+    renderRoundComplete();
+    return;
+  }
+  const emotion = currentEmotion();
+  const { mode, stage } = state;
+  const max = maxStageFor(emotion.id);
+  const total = state.roundEmotions.length;
+
+  const dotsHTML = state.roundEmotions.map((_, i) =>
+    `<span class="progress-dot ${i < state.currentIndex ? "is-done" : ""} ${i === state.currentIndex ? "is-current" : ""}"></span>`
+  ).join("");
+
+  let bodyHTML;
+  if (stage === 4) {
+    bodyHTML = state.situationSub === "closing" ? closingHTML(emotion) : situationHTML(emotion);
+  } else {
+    const layers = LAYER_ORDER[mode].slice(0, stage);
+    const layersHTML = `<div class="stage-card">${layers.map(l => renderLayer(l, emotion)).join("")}</div>`;
+    if (stage === 1) {
+      bodyHTML = layersHTML + quizRowHTML(emotion, mode);
+    } else if (stage === max) {
+      bodyHTML = layersHTML + `<button class="btn btn-primary btn-big" id="btn-stage-advance">다음</button>`;
+    } else {
+      bodyHTML = layersHTML + `<button class="btn btn-secondary btn-big" id="btn-stage-advance">더 알아보기 ▸</button>`;
+    }
+  }
+
+  app.innerHTML = `
+    <div class="game-toolbar">
+      <span class="game-progress">카드 ${state.currentIndex + 1} / ${total}</span>
+      <div class="progress-dots">${dotsHTML}</div>
+      <button class="btn btn-plain" id="btn-new-round">🔄 새 라운드</button>
+    </div>
+    <div class="single-card-wrap">${bodyHTML}</div>
+  `;
+
+  document.getElementById("btn-new-round").onclick = () => startRound(mode);
+
+  const quizBtns = app.querySelectorAll("[data-quiz-id]");
+  quizBtns.forEach(btn => {
+    btn.onclick = () => handleQuizChoice(btn.dataset.quizId, btn);
+  });
+
+  const advanceBtn = document.getElementById("btn-stage-advance");
+  if (advanceBtn) advanceBtn.onclick = advanceStage;
+
+  const closingBtn = document.getElementById("btn-goto-closing");
+  if (closingBtn) closingBtn.onclick = goToClosing;
+
+  const doneBtn = document.getElementById("btn-done-closing");
+  if (doneBtn) doneBtn.onclick = goToNextCard;
+}
+
+function handleQuizChoice(chosenId, btnEl) {
+  if (state.stage !== 1) return;
+  const correctId = state.roundEmotions[state.currentIndex];
+  playFlip();
+  if (chosenId === correctId) {
+    playCorrect();
+    state.stage = 2;
+    renderGame();
+  } else {
+    addWrong(correctId);
+    playWrong();
+    shakeEl(btnEl);
+  }
+}
+
+function renderRoundComplete() {
+  app.innerHTML = `
+    <div class="round-complete-banner">
+      🎉 라운드 완료! 정말 잘했어요! 🎉
+      <div style="margin-top:14px;">
+        <button class="btn btn-success btn-big" id="btn-next-round">다음 라운드</button>
+      </div>
+    </div>
+  `;
+  document.getElementById("btn-next-round").onclick = () => startRound(state.mode);
+  launchConfetti();
+  playCelebration();
+}
+
+/* ---------- 8. 감정도감 ---------- */
 function renderDictionary() {
   const cardsHTML = EMOTIONS.map(e => `
     <div class="dict-card">
       <div class="card-emoji">${e.emoji}</div>
       <h4>${e.id}</h4>
       <p>${e.desc}</p>
-      <p><em>예) ${e.example}</em></p>
+      <p class="dict-example">예) ${e.example}</p>
     </div>
   `).join("");
   app.innerHTML = `
@@ -428,7 +477,7 @@ function renderDictionary() {
   `;
 }
 
-/* ---------- 10. 오답노트 ---------- */
+/* ---------- 9. 오답노트 ---------- */
 function renderWrongNote() {
   const wrongIds = [...getWrongSet()];
   if (wrongIds.length === 0) {
@@ -454,12 +503,12 @@ function renderWrongNote() {
   document.getElementById("btn-practice-wrong").onclick = () => {
     const pool = wrongIds.length >= ROUND_SIZE
       ? sampleN(wrongIds, ROUND_SIZE)
-      : [...wrongIds, ...sampleN(EMOTIONS.map(e => e.id).filter(id => !wrongIds.includes(id)), ROUND_SIZE - wrongIds.length)];
+      : [...wrongIds, ...sampleN(ALL_EMOTION_IDS.filter(id => !wrongIds.includes(id)), ROUND_SIZE - wrongIds.length)];
     startRound("A", pool);
   };
 }
 
-/* ---------- 11. 헤더/설정 이벤트 ---------- */
+/* ---------- 10. 헤더/설정 이벤트 ---------- */
 document.getElementById("btn-home").onclick = renderHome;
 document.getElementById("btn-dictionary").onclick = renderDictionary;
 document.getElementById("btn-wrongnote").onclick = renderWrongNote;
@@ -483,9 +532,5 @@ document.getElementById("btn-reset-yes").onclick = () => {
   renderHome();
 };
 
-document.getElementById("situation-modal").addEventListener("click", (e) => {
-  if (e.target.id === "situation-modal") e.target.hidden = true;
-});
-
-/* ---------- 12. 시작 ---------- */
+/* ---------- 11. 시작 ---------- */
 renderHome();
