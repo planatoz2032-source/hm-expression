@@ -16,7 +16,7 @@ const EMOTIONS = [
   { id: "궁금하다", emoji: "🤔", desc: "알고 싶어서 두근거리는 마음", example: "선물 상자 안이 궁금할 때" },
   { id: "다행스럽다", emoji: "😮‍💨", desc: "나쁜 일이 안 생겨서 마음이 놓이는 느낌", example: "잃어버린 물건을 찾았을 때" },
   { id: "두렵다", emoji: "😨", desc: "무서워서 피하고 싶은 마음", example: "높은 곳에 올라갔을 때" },
-  { id: "따분하다", emoji: "😐", desc: "재미없고 지루한 마음", example: "똑같은 놀이를 계속할 때" },
+  { id: "따분하다", emoji: "😑", desc: "재미없고 지루한 마음", example: "똑같은 놀이를 계속할 때" },
   { id: "미안하다", emoji: "😔", desc: "잘못해서 마음이 무거운 느낌", example: "친구를 실수로 밀쳤을 때" },
   { id: "부끄럽다", emoji: "🙈", desc: "얼굴이 빨개지고 숨고 싶은 마음", example: "사람들 앞에서 실수했을 때" },
   { id: "불쌍하다", emoji: "🥺", desc: "안됐고 마음이 아픈 느낌", example: "다친 강아지를 봤을 때" },
@@ -33,7 +33,7 @@ const EMOTIONS = [
   { id: "짜증나다", emoji: "😠", desc: "자꾸 신경 쓰이고 귀찮은 마음", example: "하던 놀이를 자꾸 방해받을 때" },
   { id: "실망하다", emoji: "🙁", desc: "기대한 것과 달라서 속상한 마음", example: "놀이공원이 문을 닫았을 때" },
   { id: "좋아하다", emoji: "😍", desc: "마음이 끌리고 기분 좋은 느낌", example: "좋아하는 친구를 만났을 때" },
-  { id: "부럽다", emoji: "😏", desc: "남이 가진 걸 나도 갖고 싶은 마음", example: "친구의 새 장난감을 봤을 때" },
+  { id: "부럽다", emoji: "🤤", desc: "남이 가진 걸 나도 갖고 싶은 마음", example: "친구의 새 장난감을 봤을 때" },
   { id: "피곤하다", emoji: "😴", desc: "힘이 다 빠진 느낌", example: "하루 종일 뛰어놀았을 때" },
   { id: "자랑스럽다", emoji: "😎", desc: "내가 잘했다고 뽐내고 싶은 마음", example: "그림이 상을 받았을 때" },
   { id: "밉다", emoji: "😒", desc: "싫고 화가 나는 마음", example: "동생이 내 물건을 망가뜨렸을 때" },
@@ -44,7 +44,7 @@ const EMOTIONS = [
 ];
 
 // 실사 이미지가 아직 없는 감정 (assets/images/photos/ 에 파일 미존재)
-const MISSING_PHOTOS = new Set(["안타깝다", "피곤하다", "자랑스럽다"]);
+const MISSING_PHOTOS = new Set();
 EMOTIONS.forEach(e => {
   e.photo = MISSING_PHOTOS.has(e.id) ? null : `assets/images/photos/${e.id}.jpg`;
 });
@@ -226,7 +226,78 @@ function playCorrect() {
   playTone(880, 120, "sine", 0.18, 0);
   playTone(1180, 160, "sine", 0.18, 0.09);
 }
-function playWrong() { playTone(220, 180, "sine", 0.12); }
+// 오답 "삐~" 소리 (부드럽게)
+function playWrong() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const startAt = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(300, startAt);
+  osc.frequency.exponentialRampToValueAtTime(220, startAt + 0.24);
+  gain.gain.setValueAtTime(0.001, startAt);
+  gain.gain.linearRampToValueAtTime(0.09, startAt + 0.03);
+  gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.3);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(startAt);
+  osc.stop(startAt + 0.32);
+}
+
+// 폭죽 터지는 소리: 저음 "펑" + 필터링된 노이즈 "치직" 크래클
+function playFireworkBang(delay = 0) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const startAt = ctx.currentTime + delay;
+
+  const boom = ctx.createOscillator();
+  const boomGain = ctx.createGain();
+  boom.type = "sine";
+  boom.frequency.setValueAtTime(160, startAt);
+  boom.frequency.exponentialRampToValueAtTime(38, startAt + 0.28);
+  boomGain.gain.setValueAtTime(0.001, startAt);
+  boomGain.gain.linearRampToValueAtTime(0.4, startAt + 0.02);
+  boomGain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.34);
+  boom.connect(boomGain).connect(ctx.destination);
+  boom.start(startAt);
+  boom.stop(startAt + 0.36);
+
+  const bufferSize = Math.floor(ctx.sampleRate * 0.45);
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2.2);
+  }
+  const crackle = ctx.createBufferSource();
+  crackle.buffer = buffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = 2600;
+  filter.Q.value = 0.5;
+  const crackleGain = ctx.createGain();
+  crackleGain.gain.value = 0.28;
+  crackle.connect(filter).connect(crackleGain).connect(ctx.destination);
+  crackle.start(startAt);
+}
+
+// 비눗방울이 뽀글뽀글 떠오르는 소리
+function playBubblePop(delay = 0) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const startAt = ctx.currentTime + delay;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  const baseFreq = 480 + Math.random() * 620;
+  osc.frequency.setValueAtTime(baseFreq * 0.6, startAt);
+  osc.frequency.exponentialRampToValueAtTime(baseFreq, startAt + 0.12);
+  gain.gain.setValueAtTime(0.001, startAt);
+  gain.gain.linearRampToValueAtTime(0.09, startAt + 0.03);
+  gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.22);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(startAt);
+  osc.stop(startAt + 0.24);
+}
 function playCelebration() {
   // 짧은 팡파레 + 폭죽 느낌의 노이즈 버스트
   const notes = [523, 659, 784, 1046, 1318];
@@ -270,6 +341,68 @@ function launchConfetti() {
     piece.style.animationDelay = Math.random() * 0.4 + "s";
     layer.appendChild(piece);
     setTimeout(() => piece.remove(), 3500);
+  }
+}
+
+// 아래에서 위로 솟아올랐다가 터지는 폭죽 (카드마다 "다 해봤어요!" 등장 시 + 라운드 완료 시)
+function launchFireworks(shellCount = 8) {
+  const layer = document.getElementById("confetti-layer");
+  const colors = ["#ff8c42", "#4fb3ff", "#3ecf6b", "#ffe066", "#ff6b9d", "#7c5cff"];
+  const RISE_MS = 850;
+  const BURST_MS = 780;
+  for (let i = 0; i < shellCount; i++) {
+    setTimeout(() => {
+      const xVw = 12 + Math.random() * 76;
+      const riseVh = 38 + Math.random() * 36;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+
+      const trail = document.createElement("div");
+      trail.className = "firework-trail";
+      trail.style.left = xVw + "vw";
+      trail.style.background = color;
+      trail.style.setProperty("--rise", riseVh + "vh");
+      layer.appendChild(trail);
+      setTimeout(() => trail.remove(), RISE_MS);
+
+      setTimeout(() => {
+        playFireworkBang();
+        const particleCount = 22;
+        for (let p = 0; p < particleCount; p++) {
+          const angle = (p / particleCount) * Math.PI * 2;
+          const dist = 55 + Math.random() * 55;
+          const particle = document.createElement("div");
+          particle.className = "firework-particle";
+          particle.style.left = xVw + "vw";
+          particle.style.bottom = riseVh + "vh";
+          particle.style.background = color;
+          particle.style.setProperty("--dx", Math.cos(angle) * dist + "px");
+          particle.style.setProperty("--dy", Math.sin(angle) * dist + "px");
+          layer.appendChild(particle);
+          setTimeout(() => particle.remove(), BURST_MS);
+        }
+      }, RISE_MS);
+    }, i * 140 + Math.random() * 80);
+  }
+}
+
+// 둥실둥실 천천히 떠오르는 비눗방울 (라운드 완료 연출용)
+function launchBubbles(count = 24) {
+  const layer = document.getElementById("confetti-layer");
+  for (let i = 0; i < count; i++) {
+    const bubble = document.createElement("div");
+    bubble.className = "bubble-piece";
+    const size = 10 + Math.random() * 22;
+    const dur = 3.4 + Math.random() * 2.2;
+    const delay = Math.random() * 0.8;
+    bubble.style.width = size + "px";
+    bubble.style.height = size + "px";
+    bubble.style.left = Math.random() * 100 + "vw";
+    bubble.style.setProperty("--drift", (Math.random() * 60 - 30) + "px");
+    bubble.style.animationDuration = dur + "s";
+    bubble.style.animationDelay = delay + "s";
+    layer.appendChild(bubble);
+    setTimeout(() => bubble.remove(), (dur + delay) * 1000 + 200);
+    if (i % 3 === 0) playBubblePop(delay + dur * 0.15);
   }
 }
 
@@ -372,13 +505,13 @@ function renderHome() {
     </section>
     <div class="mode-grid">
       <div class="mode-card">
-        <span class="mode-emoji">😊<span class="plain-arrow">→</span>🔤</span>
+        <span class="mode-emoji">😊<span class="plain-arrow">→</span><span class="mode-word">의미(뜻)</span></span>
         <h3>모드 A</h3>
         <p>이모지 표정부터 차례대로 살펴보며 감정을 배워요.</p>
         <button class="btn btn-primary" id="start-mode-a">모드 A 시작</button>
       </div>
       <div class="mode-card">
-        <span class="mode-emoji">🔤<span class="plain-arrow">→</span>😊</span>
+        <span class="mode-emoji"><span class="mode-word">의미(뜻)</span><span class="plain-arrow">→</span>😊</span>
         <h3>모드 B</h3>
         <p>실사 표정부터 차례대로 살펴보며 감정을 배워요.</p>
         <button class="btn btn-secondary" id="start-mode-b">모드 B 시작</button>
@@ -451,9 +584,12 @@ function advanceButtonLabel(mode, key, hasSit) {
 
 function situationHTML(emotion) {
   const situation = SITUATIONS.find(s => s.id === EMOTION_TO_SITUATION[emotion.id]);
-  const a = EMOTION_MAP[situation.a.emotionId];
-  const b = EMOTION_MAP[situation.b.emotionId];
   const aIsCurrent = situation.a.emotionId === emotion.id;
+  // 순서 고정: 지금 배우는 감정을 먼저, 상대방 감정을 다음에 보여준다.
+  const currentSide = aIsCurrent ? situation.a : situation.b;
+  const otherSide = aIsCurrent ? situation.b : situation.a;
+  const currentPerson = EMOTION_MAP[currentSide.emotionId];
+  const otherPerson = EMOTION_MAP[otherSide.emotionId];
   const personHTML = (person, line, isCurrent) => `
     <div class="situation-person ${isCurrent ? "is-current" : "is-other"}">
       <span class="role-badge ${isCurrent ? "role-current" : "role-other"}">${isCurrent ? "지금 배우는 감정" : "상대방 감정"}</span>
@@ -466,8 +602,8 @@ function situationHTML(emotion) {
       <h3>어떤 상황일까요?</h3>
       <p class="situation-desc">${situation.desc}</p>
       <div class="situation-scene">
-        ${personHTML(a, situation.a.line, aIsCurrent)}
-        ${personHTML(b, situation.b.line, !aIsCurrent)}
+        ${personHTML(currentPerson, currentSide.line, true)}
+        ${personHTML(otherPerson, otherSide.line, false)}
       </div>
       <p class="situation-note">같은 상황에서도 사람마다 다르게 느낄 수 있어요.</p>
       <button class="btn btn-secondary btn-big" id="btn-goto-closing">다음: 표정 따라하기</button>
@@ -475,22 +611,14 @@ function situationHTML(emotion) {
 }
 
 function closingHTML(emotion) {
-  const situation = SITUATIONS.find(s => s.id === EMOTION_TO_SITUATION[emotion.id]);
-  const a = EMOTION_MAP[situation.a.emotionId];
-  const b = EMOTION_MAP[situation.b.emotionId];
-  const aIsCurrent = situation.a.emotionId === emotion.id;
-  const personHTML = (person, isCurrent) => `
-    <div class="situation-person ${isCurrent ? "is-current" : "is-other"}">
-      <span class="role-badge ${isCurrent ? "role-current" : "role-other"}">${isCurrent ? "지금 배우는 감정" : "상대방 감정"}</span>
-      <div class="card-emoji" style="font-size:4.5rem">${person.emoji}</div>
-      <h4>${person.id}</h4>
-    </div>`;
+  // 표정 따라하기: 지금 배우는 감정의 실사 사진 → 이모티콘 순서로만 보여준다 (상대방 감정은 제외).
   return `
     <div class="situation-card closing-card">
-      <h3>${a.id}와 ${b.id}의 표정을 따라해 보세요!</h3>
-      <div class="situation-scene">
-        ${personHTML(a, aIsCurrent)}
-        ${personHTML(b, !aIsCurrent)}
+      <h3>'${emotion.id}' 표정을 따라해 보세요!</h3>
+      <div class="closing-mimic">
+        ${photoHTML(emotion, 150)}
+        <span class="plain-arrow">→</span>
+        <div class="stage-emoji closing-emoji">${emotion.emoji}</div>
       </div>
       <button class="btn btn-success btn-big" id="btn-done-closing">다 해봤어요!</button>
     </div>`;
@@ -511,8 +639,9 @@ function renderGame() {
   ).join("");
 
   let bodyHTML;
+  const enteringClosing = key === "situation" && state.situationSub === "closing";
   if (key === "situation") {
-    bodyHTML = state.situationSub === "closing" ? closingHTML(emotion) : situationHTML(emotion);
+    bodyHTML = enteringClosing ? closingHTML(emotion) : situationHTML(emotion);
   } else {
     const layersHTML = `<div class="stage-card">${layersForStage(mode, key).map(l => renderLayer(l, emotion)).join("")}</div>`;
     if (key === "quiz") {
@@ -546,6 +675,8 @@ function renderGame() {
 
   const doneBtn = document.getElementById("btn-done-closing");
   if (doneBtn) doneBtn.onclick = goToNextCard;
+
+  if (enteringClosing) launchFireworks();
 }
 
 function handleQuizChoice(chosenId, btnEl) {
@@ -573,7 +704,10 @@ function renderRoundComplete() {
     </div>
   `;
   document.getElementById("btn-next-round").onclick = () => startRound(state.mode);
+
   launchConfetti();
+  launchFireworks(12);
+  launchBubbles();
   playCelebration();
 }
 

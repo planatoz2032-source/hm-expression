@@ -155,6 +155,15 @@ main#app {
   color: var(--color-text-soft);
   font-variant-emoji: text;
 }
+.mode-word {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: #fff1e4;
+  padding: 6px 14px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
 .mode-card h3 { margin: 4px 0; font-size: 1.3rem; }
 .mode-card p { color: var(--color-text-soft); font-size: 0.95rem; margin-bottom: 16px; }
 
@@ -427,6 +436,16 @@ main#app {
   text-align: center;
 }
 
+.closing-mimic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.closing-emoji { font-size: 4.5rem; }
+
 /* ---------- 색종이(컨페티) ---------- */
 #confetti-layer {
   position: fixed;
@@ -445,6 +464,47 @@ main#app {
 }
 @keyframes confetti-fall {
   to { transform: translateY(110vh) rotate(540deg); opacity: 0.3; }
+}
+
+/* 폭죽: 아래에서 위로 솟았다가 터짐 */
+.firework-trail {
+  position: absolute;
+  bottom: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 10px 3px currentColor;
+  animation: firework-rise 0.85s ease-out forwards;
+}
+@keyframes firework-rise {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(calc(-1 * var(--rise))); opacity: 0.95; }
+}
+.firework-particle {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  animation: firework-burst 0.78s ease-out forwards;
+}
+@keyframes firework-burst {
+  from { transform: translate(0, 0) scale(1); opacity: 1; }
+  to { transform: translate(var(--dx), var(--dy)) scale(0.3); opacity: 0; }
+}
+
+/* 물방울: 둥실둥실 위로 떠오르며 사라짐 */
+.bubble-piece {
+  position: absolute;
+  bottom: -30px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), rgba(79,179,255,0.35));
+  border: 1px solid rgba(255,255,255,0.7);
+  animation: bubble-rise linear forwards;
+}
+@keyframes bubble-rise {
+  0% { transform: translate(0, 0) scale(0.8); opacity: 0.9; }
+  80% { opacity: 0.8; }
+  100% { transform: translate(var(--drift), -105vh) scale(1.15); opacity: 0; }
 }
 
 /* ---------- 반응형 ---------- */
