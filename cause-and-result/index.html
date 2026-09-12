@@ -1,0 +1,1196 @@
+<title>왜 그랬을까 프로토타입</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#F6EFE1;
+  --surface:#FFFFFF;
+  --surface-2:#EFE3C8;
+  --ink:#2E2419;
+  --ink-muted:#8C7C61;
+  --line:#E6D8B8;
+  --accent:#E2901F;
+  --accent-soft:#FBEAC9;
+  --a:#C85A2E;
+  --a-soft:#F5DCC9;
+  --b:#2E6B9E;
+  --b-soft:#DCEAF5;
+  --good:#3C8A5D;
+  --good-soft:#E1F0E5;
+  --shadow: 0 1px 2px rgba(46,36,25,.08), 0 10px 24px rgba(46,36,25,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1E170E;
+    --surface:#2A2115;
+    --surface-2:#352A19;
+    --ink:#F2E8D4;
+    --ink-muted:#B6A47D;
+    --line:#493A24;
+    --accent:#F0A93E;
+    --accent-soft:#3A2C16;
+    --a:#E68A56;
+    --a-soft:#3B2A1F;
+    --b:#7FB3E3;
+    --b-soft:#20303F;
+    --good:#7FCB9C;
+    --good-soft:#213328;
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 24px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1E170E;
+  --surface:#2A2115;
+  --surface-2:#352A19;
+  --ink:#F2E8D4;
+  --ink-muted:#B6A47D;
+  --line:#493A24;
+  --accent:#F0A93E;
+  --accent-soft:#3A2C16;
+  --a:#E68A56;
+  --a-soft:#3B2A1F;
+  --b:#7FB3E3;
+  --b-soft:#20303F;
+  --good:#7FCB9C;
+  --good-soft:#213328;
+  --shadow: 0 1px 2px rgba(0,0,0,.35), 0 10px 24px rgba(0,0,0,.3);
+}
+
+*{box-sizing:border-box;}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"Noto Sans KR","Malgun Gothic",sans-serif;
+  line-height:1.6;
+  word-break:keep-all;
+  padding:0 16px;
+}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important; transition-duration:.01ms !important;}
+}
+
+.wrap{max-width:640px;margin:0 auto;padding-block:28px 60px;}
+
+header.top{margin-bottom:18px;}
+.eyebrow{
+  font-size:.76rem;
+  letter-spacing:.06em;
+  color:var(--ink-muted);
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 14px;
+  margin-bottom:10px;
+}
+.eyebrow a{color:var(--accent);text-decoration:none;font-weight:500;}
+.eyebrow a:hover{text-decoration:underline;}
+h1{
+  font-family:"Jua",sans-serif;
+  font-weight:400;
+  font-size:clamp(1.5rem,5vw,2.1rem);
+  text-wrap:balance;
+  margin:0 0 4px;
+}
+.sub{color:var(--ink-muted);font-size:.92rem;margin:0;}
+
+/* situation nav — scales to 35 without wrapping into a wall of chips */
+.sit-nav{display:flex;align-items:stretch;gap:8px;margin:18px 0 14px;}
+.icon-btn{
+  flex:0 0 auto;
+  width:40px;
+  border-radius:12px;
+  border:1px solid var(--line);
+  background:var(--surface);
+  color:var(--ink-muted);
+  font-size:1rem;
+  cursor:pointer;
+}
+.icon-btn:hover{color:var(--ink);background:var(--accent-soft);}
+.sit-current{
+  flex:1 1 auto;
+  min-width:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:6px 10px;
+  cursor:pointer;
+  font-family:inherit;
+}
+.sit-current:hover{background:var(--accent-soft);}
+.sit-count{font-size:.72rem;color:var(--ink-muted);font-variant-numeric:tabular-nums;}
+.sit-count strong{color:var(--ink);}
+.sit-title{
+  font-size:.92rem;font-weight:700;margin-top:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+}
+
+/* 전체 목록 모달 */
+.sit-modal{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;}
+.sit-modal-backdrop{position:absolute;inset:0;background:rgba(20,15,5,.45);}
+.sit-modal-panel{
+  position:relative;
+  background:var(--surface);
+  border-radius:18px;
+  width:100%;max-width:420px;
+  max-height:78vh;
+  overflow-y:auto;
+  padding:16px 18px 20px;
+  box-shadow:var(--shadow);
+}
+.sit-modal-head{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:.84rem;color:var(--ink-muted);margin-bottom:12px;
+}
+.sit-modal-head .icon-btn{width:32px;}
+.sit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(50px,1fr));gap:8px;}
+.sit-tile{
+  aspect-ratio:1;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:12px;
+  border:1px solid var(--line);
+  background:var(--surface-2);
+  color:var(--ink-muted);
+  font-weight:700;
+  font-size:.92rem;
+  cursor:pointer;
+  font-family:"Noto Sans KR",sans-serif;
+}
+.sit-tile:hover{background:var(--accent-soft);}
+.sit-tile.done{background:var(--good-soft);color:var(--good);border-color:transparent;}
+.sit-tile.active{outline:2px solid var(--accent);outline-offset:1px;background:var(--accent-soft);color:var(--ink);}
+
+/* progress dots */
+.progress{display:flex;gap:6px;justify-content:center;margin-bottom:16px;}
+.progress .dot{
+  width:9px;height:9px;border-radius:50%;
+  background:var(--line);
+  transition:transform .15s ease, background .15s ease;
+}
+.progress .dot.done{background:var(--ink-muted);}
+.progress .dot.cur{transform:scale(1.5);background:var(--accent);}
+.progress .dot.a{background:var(--a-soft);}
+.progress .dot.a.done, .progress .dot.a.cur{background:var(--a);}
+.progress .dot.b{background:var(--b-soft);}
+.progress .dot.b.done, .progress .dot.b.cur{background:var(--b);}
+
+/* stage card */
+.stage{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:22px;
+  box-shadow:var(--shadow);
+  padding:18px 18px 22px;
+}
+.scene-frame{
+  background:var(--surface-2);
+  border-radius:16px;
+  overflow:hidden;
+  margin-bottom:16px;
+}
+.scene-frame svg{display:block;width:100%;height:auto;}
+.fig-label{font-family:"Noto Sans KR",sans-serif;font-weight:700;font-size:15px;fill:var(--ink);}
+
+/* intro caption — moved above the illustration, enlarged */
+.intro-caption{text-align:center;margin-bottom:14px;}
+.intro-caption .tag{
+  font-size:.82rem;
+  color:var(--ink-muted);
+  margin:0 0 6px;
+}
+.intro-caption .big{
+  font-family:"Jua",sans-serif;
+  font-weight:400;
+  font-size:clamp(1.3rem,4.5vw,1.6rem);
+  line-height:1.45;
+  text-wrap:balance;
+  margin:0;
+}
+
+.question{
+  font-family:"Jua",sans-serif;
+  font-weight:400;
+  font-size:1.25rem;
+  text-align:center;
+  margin:4px 0 14px;
+  text-wrap:balance;
+}
+
+.examples{
+  margin-top:14px;
+  background:var(--accent-soft);
+  border-radius:14px;
+  padding:14px 16px;
+  animation:fadeIn .25s ease;
+}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+.examples-label{font-size:.8rem;color:var(--ink-muted);margin-bottom:8px;}
+.reasons{display:flex;flex-wrap:wrap;gap:8px;}
+.reasons .chip{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:6px 13px;
+  font-size:.88rem;
+}
+.note{font-size:.84rem;color:var(--ink-muted);margin-top:12px;}
+
+/* parent-facing badge — whose perspective this card shows */
+.badges{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:18px;}
+.badge{
+  font-size:1rem;
+  font-weight:700;
+  padding:9px 20px;
+  border-radius:999px;
+  background:var(--surface-2);
+  color:var(--ink-muted);
+  border:1px solid var(--line);
+}
+.badge.a{background:var(--a-soft);color:var(--a);border-color:transparent;}
+.badge.b{background:var(--b-soft);color:var(--b);border-color:transparent;}
+
+/* reset progress */
+.reset-link{
+  display:block;
+  margin-top:10px;
+  background:none;
+  border:none;
+  padding:0;
+  color:var(--ink-muted);
+  font-size:.8rem;
+  text-decoration:underline;
+  cursor:pointer;
+  font-family:inherit;
+}
+.reset-link:hover{color:var(--ink);}
+
+/* flip reveal card (feel / result) */
+.flipcard{
+  border:1px dashed var(--line);
+  border-radius:16px;
+  padding:22px 18px;
+  text-align:center;
+  cursor:pointer;
+  background:var(--bg);
+  transition:transform .12s ease;
+}
+.flipcard:hover{transform:translateY(-2px);}
+.flipcard .tap-label{color:var(--ink-muted);font-size:.92rem;}
+.reveal{
+  border-radius:16px;
+  padding:20px 18px;
+  text-align:center;
+  animation:pop .28s ease;
+}
+@keyframes pop{from{opacity:0;transform:scale(.92);}to{opacity:1;transform:none;}}
+.reveal.a{background:var(--a-soft);}
+.reveal.b{background:var(--b-soft);}
+.reveal .icon{font-size:2.4rem;display:block;margin-bottom:6px;}
+.reveal .label{font-family:"Jua",sans-serif;font-size:1.15rem;}
+.reveal .text{font-size:1rem;margin-top:8px;}
+
+/* nav */
+.nav{display:flex;justify-content:space-between;align-items:center;margin-top:20px;gap:10px;}
+.btn{
+  font-family:"Noto Sans KR",sans-serif;
+  font-weight:700;
+  font-size:.96rem;
+  border:none;
+  border-radius:999px;
+  padding:11px 20px;
+  cursor:pointer;
+  transition:transform .12s ease, filter .12s ease;
+}
+.btn:hover{filter:brightness(1.04);transform:translateY(-1px);}
+.btn:active{transform:translateY(0);filter:brightness(.97);}
+.btn.primary{background:var(--accent);color:#fff;margin-left:auto;}
+.btn.ghost{background:transparent;color:var(--ink-muted);border:1px solid var(--line);}
+.btn:disabled{opacity:.4;cursor:default;transform:none;}
+
+footer{
+  max-width:640px;margin:30px auto 0;
+  color:var(--ink-muted);font-size:.8rem;
+  border-top:1px solid var(--line);padding-top:16px;
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">
+      <span>전체 35개 상황</span>
+      <a href="https://claude.ai/code/artifact/0e3e19fe-8b54-4943-853e-5df26bb146d4" target="_blank" rel="noopener">📋 기획서 보기</a>
+    </div>
+    <h1>왜 그랬을까?</h1>
+    <p class="sub">그림을 보고, A와 B의 마음을 하나씩 따라가 봐요.</p>
+  </header>
+
+  <div class="sit-nav">
+    <button class="icon-btn" id="prevSitBtn" type="button" aria-label="이전 상황">◀</button>
+    <button class="sit-current" id="allSitBtn" type="button">
+      <span class="sit-count">상황 <strong id="sitIndexLabel">1</strong> / <span id="sitTotalLabel">3</span></span>
+      <span class="sit-title" id="sitTitleLabel">① 장난감</span>
+    </button>
+    <button class="icon-btn" id="nextSitBtn" type="button" aria-label="다음 상황">▶</button>
+  </div>
+  <div class="progress" id="progress"></div>
+
+  <div class="sit-modal" id="sitModal" hidden>
+    <div class="sit-modal-backdrop" id="sitModalBackdrop"></div>
+    <div class="sit-modal-panel">
+      <div class="sit-modal-head">
+        <span id="modalProgressLabel">전체 상황</span>
+        <button class="icon-btn" id="closeModalBtn" type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="sit-grid" id="sitGrid"></div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="intro-caption" id="introCaption" hidden></div>
+    <div class="scene-frame" id="sceneFrame"></div>
+    <div id="questionBox"></div>
+    <div id="interact"></div>
+    <div class="nav">
+      <button class="btn ghost" id="backBtn">← 이전</button>
+      <button class="btn primary" id="primaryBtn"></button>
+    </div>
+    <div class="badges" id="badges"></div>
+  </div>
+
+  <footer>
+    왜 그랬을까 · 원인과 결과 놀이터 — 상황 35개 전체. 상황이 바뀌거나 단계가 바뀔 때 서로 다른 소리가 납니다.
+    <button id="resetBtn" class="reset-link" type="button">진행 상황 초기화</button>
+  </footer>
+</div>
+
+<script>
+/* ---------- content data (06장 스키마 축소판) ---------- */
+const situations = [
+  {
+    id:1, tabLabel:"① 장난감", scene:"toy",
+    narration:"도윤이가 자동차 장난감을 가지고 놀고 있었어요. 나은이가 그 장난감을 가져갔어요.",
+    a:{ name:"나은", trigger:"장난감이 너무 갖고 싶었어요",
+        emotion:{label:"신남 · 기대됨", icon:"🤩", mood:"excited"},
+        result:"장난감을 갖게 됐지만, 도윤이가 속상해하는 모습을 봤어요.",
+        exampleReasons:["장난감이 너무 갖고 싶어서","심심해서 같이 놀고 싶어서","물어보는 걸 깜빡해서"] },
+    b:{ name:"도윤", trigger:"재미있게 가지고 놀던 장난감을 갑자기 뺏겼어요",
+        emotion:{label:"당황 · 속상함", icon:"😳", mood:"sad"},
+        result:"하던 놀이를 멈추게 됐고, 나은이에게 돌려달라고 말했어요.",
+        exampleReasons:["갑자기 뺏겨서 놀랐어요","더 놀고 싶었는데 못 놀아서 속상해요","왜 말도 없이 가져갔는지 궁금해요"] },
+    resolutionExamples:["다음엔 먼저 “같이 놀아도 돼?”라고 물어봐요","장난감을 돌려주고 다른 걸 같이 찾아봐요","번갈아 가면서 가지고 놀아요"]
+  },
+  {
+    id:2, tabLabel:"② 공놀이", scene:"ball",
+    narration:"소이가 다른 곳을 보고 있었어요. 하람이가 던진 공이 소이에게 맞았어요.",
+    a:{ name:"하람", trigger:"같이 공놀이를 하고 싶었어요",
+        emotion:{label:"신남", icon:"😆", mood:"excited"},
+        result:"공에 맞아 놀란 소이를 보고 미안해졌어요.",
+        exampleReasons:["같이 놀고 싶어서 던졌어요","장난치고 싶어서 던졌어요","소이가 보고 있는 줄 알았어요"] },
+    b:{ name:"소이", trigger:"다른 곳을 보고 있다가 갑자기 공에 맞았어요",
+        emotion:{label:"놀람 · 아픔", icon:"😖", mood:"surprised"},
+        result:"잠깐 놀이를 멈추고 아픈 곳을 만졌어요. 하람이의 사과를 들었어요.",
+        exampleReasons:["갑자기 맞아서 놀랐어요","아파서 속상해요","일부러 그런 건지 궁금했어요"] },
+    resolutionExamples:["던지기 전에 “공 받을 준비 됐어?”라고 물어봐요","괜찮은지 먼저 물어보고 사과해요","같이 놀 수 있는 다른 방법을 찾아봐요"]
+  },
+  {
+    id:3, tabLabel:"③ 새치기", scene:"push",
+    narration:"아린이가 줄을 서서 순서를 기다리고 있었어요. 준서가 아린이를 밀고 먼저 줄에 섰어요.",
+    a:{ name:"준서", trigger:"빨리 타고 싶어서 마음이 급했어요",
+        emotion:{label:"조급함", icon:"😬", mood:"worried"},
+        result:"먼저 줄에 섰지만, 아린이가 화난 걸 알게 됐어요.",
+        exampleReasons:["빨리 하고 싶어서 급했어요","차례를 깜빡 잊었어요","장난으로 밀었어요"] },
+    b:{ name:"아린", trigger:"순서를 기다리고 있었는데 갑자기 밀렸어요",
+        emotion:{label:"놀람 · 화남", icon:"😠", mood:"angry"},
+        result:"차례를 빼앗겨서 속상했고, 준서에게 “내가 먼저야”라고 말했어요.",
+        exampleReasons:["갑자기 밀려서 놀랐어요","차례를 뺏겨서 화가 나요","왜 밀었는지 이해가 안 돼요"] },
+    resolutionExamples:["“먼저 가도 돼?”라고 물어보고 기다려요","밀지 않고 뒤에서 순서를 기다려요","미안하다고 말하고 원래 자리로 돌아가요"]
+  },
+  {
+    id:4, tabLabel:"④ 그림 겹치기", scene:"generic", emoji:"🎨",
+    narration:"시우가 도화지에 그림을 그리고 있었어요. 예서가 그 위에 자기 그림을 겹쳐 그렸어요.",
+    a:{ name:"예서", trigger:"시우랑 같이 그리고 싶어서 그림 위에 그렸어요",
+        emotion:{label:"신남", icon:"😊", mood:"excited"},
+        result:"같이 그리긴 했지만, 시우가 속상해하는 걸 보고 미안해졌어요.",
+        exampleReasons:["같이 그리고 싶어서","더 멋있게 꾸미고 싶어서","도화지가 비어 보여서"] },
+    b:{ name:"시우", trigger:"열심히 그리던 그림 위에 갑자기 다른 그림이 겹쳐졌어요",
+        emotion:{label:"당황 · 속상함", icon:"😞", mood:"sad"},
+        result:"그림이 망가져서 속상했고, 예서에게 속상하다고 말했어요.",
+        exampleReasons:["그림이 망가져서 속상해요","왜 물어보지 않았는지 궁금해요","다시 그려야 해서 아쉬워요"] },
+    resolutionExamples:["그리기 전에 “같이 그려도 돼?”라고 물어봐요","새 도화지를 가져와서 옆에 같이 그려요","망가진 부분을 같이 고쳐봐요"]
+  },
+  {
+    id:5, tabLabel:"⑤ 사탕 나누기", scene:"generic", emoji:"🍬",
+    narration:"다은이가 가지고 있던 사탕 중 하나를 강민이에게 줬어요.",
+    a:{ name:"다은", trigger:"사탕이 두 개 있어서 강민이랑 나누고 싶었어요",
+        emotion:{label:"뿌듯함", icon:"🥰", mood:"excited"},
+        result:"강민이가 활짝 웃는 모습을 보고 다은이도 기분이 좋아졌어요.",
+        exampleReasons:["나눠 먹고 싶어서","강민이가 좋아할 것 같아서","사탕이 남아서"] },
+    b:{ name:"강민", trigger:"사탕을 먹고 싶었는데 다은이가 하나를 줬어요",
+        emotion:{label:"기쁨", icon:"😄", mood:"excited"},
+        result:"고맙다고 말하고 다은이와 함께 사탕을 먹었어요.",
+        exampleReasons:["사탕을 받아서 기뻐요","다은이가 고마워요","같이 먹을 수 있어서 좋아요"] },
+    resolutionExamples:["다음에도 좋아하는 걸 나눠줘요","고맙다고 꼭 말해요","같이 먹으면 더 즐거워요"]
+  },
+  {
+    id:6, tabLabel:"⑥ 물 쏟기", scene:"generic", emoji:"💧",
+    narration:"유나가 물을 마시려다 실수로 컵을 쏟았어요. 물이 태오 쪽으로 흘렀어요.",
+    a:{ name:"유나", trigger:"컵을 들다가 손이 미끄러져서 물을 쏟았어요",
+        emotion:{label:"당황함", icon:"😳", mood:"worried"},
+        result:"미안하다고 말하고 태오와 함께 바닥을 닦았어요.",
+        exampleReasons:["손이 미끄러워서","급하게 마시려다가","컵을 잘못 잡아서"] },
+    b:{ name:"태오", trigger:"옆에 있다가 갑자기 물이 튀어서 옷이 젖었어요",
+        emotion:{label:"놀람", icon:"😮", mood:"surprised"},
+        result:"옷이 젖어서 당황했지만, 유나가 사과해서 같이 닦았어요.",
+        exampleReasons:["갑자기 물이 튀어서 놀랐어요","옷이 젖어서 축축해요","일부러 그런 게 아니라는 걸 알아요"] },
+    resolutionExamples:["컵은 두 손으로 조심히 들어요","쏟았을 땐 바로 닦아요","놀랐을 땐 괜찮은지 먼저 물어봐요"]
+  },
+  {
+    id:7, tabLabel:"⑦ 블록 무너짐", scene:"generic", emoji:"🧱",
+    narration:"하은이가 블록을 높이 쌓고 있었어요. 서준이가 신나게 놀다가 블록을 건드려 무너뜨렸어요.",
+    a:{ name:"서준", trigger:"블록 옆에서 신나게 뛰어놀다가 팔이 부딪혔어요",
+        emotion:{label:"놀람 · 미안함", icon:"😅", mood:"worried"},
+        result:"미안하다고 말했고, 하은이와 함께 다시 쌓기로 했어요.",
+        exampleReasons:["신나게 놀다가 부딪혔어요","블록이 있는 줄 몰랐어요","일부러 그런 게 아니에요"] },
+    b:{ name:"하은", trigger:"열심히 쌓은 블록탑이 순식간에 무너졌어요",
+        emotion:{label:"속상함", icon:"😢", mood:"sad"},
+        result:"속상했지만 서준이가 사과해서 같이 다시 쌓았어요.",
+        exampleReasons:["열심히 쌓은 게 무너져서 속상해요","다시 쌓아야 해서 힘들어요","조심하지 않은 게 아쉬워요"] },
+    resolutionExamples:["블록 근처에서는 천천히 움직여요","무너뜨렸을 땐 바로 사과해요","같이 다시 쌓아줘요"]
+  },
+  {
+    id:8, tabLabel:"⑧ 동시에 잡기", scene:"generic", emoji:"🚙",
+    narration:"민준이와 채원이가 동시에 같은 장난감 자동차를 잡았어요.",
+    a:{ name:"민준", trigger:"그 자동차를 갖고 놀고 싶어서 먼저 손을 뻗었어요",
+        emotion:{label:"긴장됨", icon:"😬", mood:"worried"},
+        result:"서로 당기다가 둘 다 속상해져서 잠깐 손을 놓았어요.",
+        exampleReasons:["그 장난감을 갖고 싶어서","제일 재밌어 보여서","먼저 보였다고 생각해서"] },
+    b:{ name:"채원", trigger:"같은 자동차를 갖고 싶어서 동시에 손을 뻗었어요",
+        emotion:{label:"긴장됨", icon:"😬", mood:"worried"},
+        result:"서로 당기다가 둘 다 속상해져서 잠깐 손을 놓았어요.",
+        exampleReasons:["그 장난감을 갖고 싶어서","혼자 갖고 놀고 싶어서","먼저 잡았다고 생각해서"] },
+    resolutionExamples:["가위바위보로 순서를 정해요","번갈아 가면서 가지고 놀아요","다른 장난감을 같이 찾아봐요"]
+  },
+  {
+    id:9, tabLabel:"⑨ 거절", scene:"generic", emoji:"🙅",
+    narration:"지호가 소율이에게 같이 놀자고 했어요. 소율이가 “싫어”라고 말했어요.",
+    a:{ name:"지호", trigger:"소율이랑 같이 놀고 싶어서 물어봤어요",
+        emotion:{label:"서운함", icon:"😔", mood:"sad"},
+        result:"거절당해서 서운했지만, 다른 친구를 찾아 놀았어요.",
+        exampleReasons:["같이 놀고 싶어서 물어봤어요","심심해서 같이 하고 싶었어요","재밌을 것 같아서 물어봤어요"] },
+    b:{ name:"소율", trigger:"지금은 혼자 조용히 놀고 싶었어요",
+        emotion:{label:"단호함", icon:"😐", mood:"neutral"},
+        result:"혼자 놀고 싶다고 솔직하게 말했어요.",
+        exampleReasons:["혼자 놀고 싶어서","지금은 다른 놀이가 하고 싶어서","조금 쉬고 싶어서"] },
+    resolutionExamples:["“그럼 나중에 같이 놀자”라고 말해요","거절당해도 속상한 마음을 표현해봐요","다른 친구에게 같이 놀자고 해봐요"]
+  },
+  {
+    id:10, tabLabel:"⑩ 다른 친구", scene:"generic", emoji:"🏃",
+    narration:"은우가 서아에게 같이 놀자고 했는데, 서아는 다른 친구에게 뛰어갔어요.",
+    a:{ name:"은우", trigger:"서아랑 같이 놀고 싶었는데 대답도 없이 가버렸어요",
+        emotion:{label:"서운함", icon:"😞", mood:"sad"},
+        result:"서운했지만 다른 놀이를 찾아 했어요.",
+        exampleReasons:["같이 놀고 싶었는데 가버려서","기다렸는데 대답이 없어서","혼자 남겨진 것 같아서"] },
+    b:{ name:"서아", trigger:"마침 다른 친구가 부르는 소리를 듣고 반가워서 달려갔어요",
+        emotion:{label:"신남", icon:"😆", mood:"excited"},
+        result:"신나게 놀다가 나중에 은우 생각이 나서 미안해졌어요.",
+        exampleReasons:["다른 친구가 불러서 반가웠어요","그 놀이가 더 하고 싶었어요","은우한테 말할 새가 없었어요"] },
+    resolutionExamples:["가기 전에 “이따가 같이 놀자”라고 말해요","서운하면 마음을 솔직히 말해요","다음엔 같이 갈 수 있는지 물어봐요"]
+  },
+  {
+    id:11, tabLabel:"⑪ 장난", scene:"generic", emoji:"😆",
+    narration:"도현이가 하윤이에게 장난을 쳤어요. 하윤이가 화를 냈어요.",
+    a:{ name:"도현", trigger:"장난이 재밌을 거라고 생각해서 놀렸어요",
+        emotion:{label:"당황함", icon:"😅", mood:"worried"},
+        result:"하윤이가 정말 화난 걸 보고 장난이 지나쳤다는 걸 알았어요.",
+        exampleReasons:["장난이 재밌을 것 같아서","친해지고 싶어서 장난쳤어요","웃길 거라고 생각했어요"] },
+    b:{ name:"하윤", trigger:"놀림을 당해서 기분이 나빴어요",
+        emotion:{label:"화남", icon:"😠", mood:"angry"},
+        result:"화가 난 마음을 도현이에게 말했고, 도현이가 사과했어요.",
+        exampleReasons:["놀림당해서 기분 나빠요","장난이 심하다고 느꼈어요","싫다고 말했는데 계속해서 화나요"] },
+    resolutionExamples:["장난치기 전에 상대 기분을 생각해봐요","“싫어”라고 말하면 바로 멈춰요","화났을 땐 왜 그런지 말해줘요"]
+  },
+  {
+    id:12, tabLabel:"⑫ 안기 싫어", scene:"generic", emoji:"🤗",
+    narration:"지안이가 유준이를 안아주려고 했어요. 유준이가 몸을 피했어요.",
+    a:{ name:"지안", trigger:"유준이가 좋아서 안아주고 싶었어요",
+        emotion:{label:"서운함", icon:"😕", mood:"sad"},
+        result:"피해서 서운했지만, 유준이 마음도 있다는 걸 알게 됐어요.",
+        exampleReasons:["좋아서 안아주고 싶었어요","반가워서 그랬어요","친하다는 걸 표현하고 싶었어요"] },
+    b:{ name:"유준", trigger:"지금은 안기고 싶은 기분이 아니었어요",
+        emotion:{label:"불편함", icon:"😣", mood:"worried"},
+        result:"몸을 피하고 “지금은 괜찮아”라고 말했어요.",
+        exampleReasons:["지금은 안기고 싶지 않아서","갑자기 놀라서","혼자 있고 싶은 기분이라서"] },
+    resolutionExamples:["안기 전에 “안아도 돼?”라고 물어봐요","싫다고 하면 존중해줘요","다른 방법으로 반가움을 표현해봐요"]
+  },
+  {
+    id:13, tabLabel:"⑬ 손 빼기", scene:"generic", emoji:"🖐️",
+    narration:"하율이가 은서의 손을 잡았어요. 은서가 손을 뺐어요.",
+    a:{ name:"하율", trigger:"같이 손잡고 가고 싶어서 손을 잡았어요",
+        emotion:{label:"서운함", icon:"😔", mood:"sad"},
+        result:"손을 빼서 서운했지만, 혼자 걷고 싶을 수도 있다고 생각했어요.",
+        exampleReasons:["같이 가고 싶어서","넘어질까봐 걱정돼서","친해서 손을 잡았어요"] },
+    b:{ name:"은서", trigger:"지금은 혼자 걷고 싶었어요",
+        emotion:{label:"불편함", icon:"😐", mood:"neutral"},
+        result:"손을 빼고 “나 혼자 갈게”라고 말했어요.",
+        exampleReasons:["혼자 걷고 싶어서","손이 답답해서","지금은 그런 기분이 아니라서"] },
+    resolutionExamples:["손잡기 전에 물어봐요","거절해도 괜찮다고 알려줘요","다른 방법으로 같이 가요"]
+  },
+  {
+    id:14, tabLabel:"⑭ 딴 곳 보기", scene:"generic", emoji:"💬",
+    narration:"강민이가 다은이에게 계속 말을 걸었어요. 다은이는 다른 곳을 보고 있었어요.",
+    a:{ name:"강민", trigger:"하고 싶은 이야기가 있어서 계속 말을 걸었어요",
+        emotion:{label:"답답함", icon:"😕", mood:"worried"},
+        result:"다은이가 못 들은 걸 알고, 나중에 다시 이야기하기로 했어요.",
+        exampleReasons:["하고 싶은 말이 있어서","같이 이야기하고 싶어서","재밌는 일이 있어서 말하고 싶었어요"] },
+    b:{ name:"다은", trigger:"다른 것에 집중하느라 강민이 말을 못 들었어요",
+        emotion:{label:"미안함", icon:"😅", mood:"worried"},
+        result:"나중에 알아채고 “미안, 다시 말해줄래?”라고 물었어요.",
+        exampleReasons:["다른 데 집중하고 있어서","못 들었어요","지금은 딴생각 중이었어요"] },
+    resolutionExamples:["이름을 부르고 눈을 보며 말해요","못 들었으면 다시 말해달라고 해요","급한 일이면 살짝 말해줘요"]
+  },
+  {
+    id:15, tabLabel:"⑮ 모자", scene:"generic", emoji:"🧢",
+    narration:"유나가 모자를 옆에 두었어요. 태오가 허락 없이 그 모자를 써봤어요.",
+    a:{ name:"태오", trigger:"모자가 멋있어 보여서 써보고 싶었어요",
+        emotion:{label:"신남", icon:"😄", mood:"excited"},
+        result:"재밌었지만, 유나가 싫어하는 걸 보고 돌려줬어요.",
+        exampleReasons:["멋있어 보여서 써보고 싶었어요","궁금해서 써봤어요","금방 벗을 거라고 생각했어요"] },
+    b:{ name:"유나", trigger:"내 모자를 허락 없이 써서 기분이 안 좋았어요",
+        emotion:{label:"불쾌함", icon:"😠", mood:"angry"},
+        result:"돌려달라고 말했고, 태오가 바로 돌려줬어요.",
+        exampleReasons:["허락 없이 써서 싫어요","내 물건이라 소중해요","물어보지 않아서 속상해요"] },
+    resolutionExamples:["쓰기 전에 “써봐도 돼?”라고 물어봐요","싫다고 하면 바로 돌려줘요","허락받고 나서 같이 놀아요"]
+  },
+  {
+    id:16, tabLabel:"⑯ 간식", scene:"generic", emoji:"🍪",
+    narration:"서준이가 과자를 먹고 있었어요. 하은이가 “나도 줘”라고 말했어요.",
+    a:{ name:"하은", trigger:"과자가 맛있어 보여서 먹고 싶었어요",
+        emotion:{label:"기대됨", icon:"🙂", mood:"excited"},
+        result:"서준이가 하나 나눠줘서 같이 먹었어요.",
+        exampleReasons:["맛있어 보여서 먹고 싶었어요","같이 먹고 싶어서","배가 고파서요"] },
+    b:{ name:"서준", trigger:"내가 가진 과자를 지키고 싶은 마음도 들었어요",
+        emotion:{label:"고민됨", icon:"🤔", mood:"worried"},
+        result:"조금 아쉬웠지만 하나를 나눠줬어요.",
+        exampleReasons:["다 먹고 싶었지만 나눠주기로 했어요","같이 먹으면 더 좋을 것 같아서","친구니까 나눠줬어요"] },
+    resolutionExamples:["나눠줄 수 있는지 먼저 물어봐요","조금씩 나눠 먹어요","다음엔 미리 나눠 가져와요"]
+  },
+  {
+    id:17, tabLabel:"⑰ 너 못해", scene:"generic", emoji:"💬",
+    narration:"민준이가 그림을 그리고 있었어요. 채원이가 “너 못해”라고 말했어요.",
+    a:{ name:"채원", trigger:"자기가 더 잘 그린다고 생각해서 말했어요",
+        emotion:{label:"우쭐함", icon:"😏", mood:"neutral"},
+        result:"민준이가 속상해하는 걸 보고 말이 심했다는 걸 깨달았어요.",
+        exampleReasons:["더 잘 그린다고 생각해서","장난으로 말했어요","사실대로 말한다고 생각했어요"] },
+    b:{ name:"민준", trigger:"열심히 그렸는데 못한다는 말을 들었어요",
+        emotion:{label:"속상함", icon:"😢", mood:"sad"},
+        result:"자신감이 떨어졌지만, 채원이의 사과를 듣고 다시 그렸어요.",
+        exampleReasons:["열심히 그렸는데 그런 말을 들어서 속상해요","자신감이 없어져요","계속 그리고 싶은 마음이 줄었어요"] },
+    resolutionExamples:["잘한 점을 먼저 찾아 말해줘요","속상한 말 대신 응원하는 말을 해요","사과하고 같이 그려봐요"]
+  },
+  {
+    id:18, tabLabel:"⑱ 큰 소리", scene:"generic", emoji:"🏆",
+    narration:"소율이가 게임에서 이기고 크게 소리를 질렀어요.",
+    a:{ name:"소율", trigger:"게임에서 이겨서 너무 기뻤어요",
+        emotion:{label:"신남", icon:"🥳", mood:"excited"},
+        result:"기뻐서 소리쳤지만, 지호가 놀란 걸 보고 목소리를 낮췄어요.",
+        exampleReasons:["이겨서 너무 기뻐서","자랑하고 싶어서","신나서 저절로 소리가 나왔어요"] },
+    b:{ name:"지호", trigger:"갑자기 큰 소리가 나서 깜짝 놀랐어요",
+        emotion:{label:"놀람 · 불편함", icon:"😳", mood:"surprised"},
+        result:"놀랐지만 소율이가 목소리를 낮춰서 편해졌어요.",
+        exampleReasons:["갑자기 놀라서요","시끄러워서 불편했어요","져서 속상한데 소리까지 커서 힘들었어요"] },
+    resolutionExamples:["기뻐도 목소리 크기를 조절해요","이겼을 때 진 친구 마음도 생각해요","작은 소리로 “이겼다!”라고 말해봐요"]
+  },
+  {
+    id:19, tabLabel:"⑲ 새치기", scene:"push",
+    narration:"서아가 줄을 서 있었어요. 은우가 그 줄을 추월해서 앞에 섰어요.",
+    a:{ name:"은우", trigger:"빨리 타고 싶은 마음이 들어서 줄을 추월했어요",
+        emotion:{label:"조급함", icon:"😬", mood:"worried"},
+        result:"앞에 섰지만, 서아가 속상해하는 걸 보고 마음이 불편해졌어요.",
+        exampleReasons:["빨리 타고 싶어서","기다리기 힘들어서","깜빡하고 그냥 앞으로 갔어요"] },
+    b:{ name:"서아", trigger:"순서를 기다리고 있었는데 갑자기 추월당했어요",
+        emotion:{label:"속상함", icon:"😞", mood:"sad"},
+        result:"속상했지만 은우에게 순서를 지켜달라고 말했어요.",
+        exampleReasons:["기다리고 있었는데 새치기당해서","차례가 사라진 것 같아서","억울한 마음이 들어서"] },
+    resolutionExamples:["하고 싶어도 순서를 기다려요","깜빡했으면 바로 원래 자리로 가요","기다리기 힘들면 얼마나 남았는지 물어봐요"]
+  },
+  {
+    id:20, tabLabel:"⑳ 허락 구하기", scene:"generic", emoji:"🧱",
+    narration:"하율이가 블록으로 무언가를 만들고 있었어요. 도현이는 그 블록을 만지고 싶었어요.",
+    a:{ name:"도현", trigger:"블록이 멋있어 보여서 만지고 싶은 마음이 들었어요",
+        emotion:{label:"궁금함", icon:"🤩", mood:"excited"},
+        result:"바로 만지지 않고 물어봐서, 하율이가 허락해줬어요.",
+        exampleReasons:["멋있어 보여서 만지고 싶었어요","같이 만들고 싶어서","궁금해서 물어봤어요"] },
+    b:{ name:"하율", trigger:"열심히 만들던 블록을 도현이가 물어봐줘서 고마웠어요",
+        emotion:{label:"기쁨", icon:"😊", mood:"excited"},
+        result:"허락해주고 같이 만들었어요.",
+        exampleReasons:["물어봐줘서 고마워요","같이 만들면 더 재밌을 것 같아서","친구가 좋아하는 걸 보고 싶어서"] },
+    resolutionExamples:["만지고 싶을 땐 먼저 물어봐요","허락해주면 같이 놀아요","안 된다고 해도 이해해줘요"]
+  },
+  {
+    id:21, tabLabel:"㉑ 장난감 욕심", scene:"generic", emoji:"🚗",
+    narration:"강민이가 장난감을 갖고 놀고 있었어요. 은서가 그 장난감을 보고 바로 가져가려 했어요.",
+    a:{ name:"은서", trigger:"장난감이 갖고 싶어서 손을 뻗었어요",
+        emotion:{label:"조급함", icon:"😬", mood:"worried"},
+        result:"가져가려다 멈추고, 강민이에게 먼저 물어봤어요.",
+        exampleReasons:["장난감이 갖고 싶어서","재밌어 보여서","기다리기 힘들어서"] },
+    b:{ name:"강민", trigger:"놀고 있던 장난감을 은서가 가져가려 해서 놀랐어요",
+        emotion:{label:"당황함", icon:"😳", mood:"surprised"},
+        result:"은서가 물어봐줘서 다행이라고 생각하고, 조금 이따 빌려주기로 했어요.",
+        exampleReasons:["갑자기 가져가려 해서 놀랐어요","아직 다 놀지 못해서","물어보지 않아서 당황했어요"] },
+    resolutionExamples:["갖고 싶어도 먼저 물어봐요","“다 쓰고 나서 빌려줄게”라고 말해요","기다리는 동안 다른 걸 해봐요"]
+  },
+  {
+    id:22, tabLabel:"㉒ 끼어들기", scene:"generic", emoji:"💬",
+    narration:"지안이가 이야기하고 있었어요. 다은이가 하고 싶은 말이 생각나서 중간에 끼어들었어요.",
+    a:{ name:"다은", trigger:"갑자기 하고 싶은 말이 떠올라서 참지 못하고 끼어들었어요",
+        emotion:{label:"조급함", icon:"😬", mood:"worried"},
+        result:"끼어든 걸 알아채고 지안이에게 미안하다고 말했어요.",
+        exampleReasons:["하고 싶은 말이 떠올라서","까먹을까봐 서둘러 말했어요","너무 신나서 참지 못했어요"] },
+    b:{ name:"지안", trigger:"이야기하는 중간에 갑자기 말이 끊겼어요",
+        emotion:{label:"당황함", icon:"😕", mood:"worried"},
+        result:"조금 당황했지만 다은이 말을 듣고 나서 하던 얘기를 이어갔어요.",
+        exampleReasons:["말이 끊겨서 당황했어요","하려던 말을 잊어버렸어요","끝까지 듣고 싶었는데 아쉬워요"] },
+    resolutionExamples:["말하고 싶으면 손을 들고 기다려요","끼어들었으면 “미안, 계속해”라고 말해요","끝날 때까지 잠깐 참아봐요"]
+  },
+  {
+    id:23, tabLabel:"㉓ 소리지름", scene:"generic", emoji:"😲",
+    narration:"유준이가 갑자기 큰 소리를 질렀어요. 옆에 있던 하은이가 깜짝 놀랐어요.",
+    a:{ name:"유준", trigger:"너무 재밌거나 답답한 마음이 들어서 참지 못하고 소리쳤어요",
+        emotion:{label:"충동적임", icon:"😖", mood:"worried"},
+        result:"친구들이 놀란 걸 보고 목소리를 줄여야겠다고 생각했어요.",
+        exampleReasons:["너무 신나서 소리가 나왔어요","답답해서 참지 못했어요","깜짝 놀라서 소리쳤어요"] },
+    b:{ name:"하은", trigger:"조용히 있다가 갑자기 큰 소리를 들었어요",
+        emotion:{label:"놀람", icon:"😨", mood:"surprised"},
+        result:"깜짝 놀랐지만 유준이가 목소리를 낮춰서 안심했어요.",
+        exampleReasons:["갑자기 소리가 나서 놀랐어요","시끄러워서 깜짝 놀랐어요","무슨 일인지 몰라서 당황했어요"] },
+    resolutionExamples:["소리치고 싶을 땐 숨을 한 번 쉬어요","작은 목소리로 말하는 연습을 해요","놀랐으면 괜찮은지 물어봐요"]
+  },
+  {
+    id:24, tabLabel:"㉔ 낮잠 방해", scene:"generic", emoji:"😴",
+    narration:"채원이가 낮잠을 자고 있었어요. 서준이가 심심해서 옆에서 장난감을 가지고 놀았어요.",
+    a:{ name:"서준", trigger:"심심해서 조용히 장난감을 가지고 놀았어요",
+        emotion:{label:"심심함", icon:"😐", mood:"neutral"},
+        result:"소리가 커져서 채원이가 깬 걸 보고 미안해졌어요.",
+        exampleReasons:["심심해서 놀고 싶었어요","혼자 놀 게 없어서","기다리기 지루해서"] },
+    b:{ name:"채원", trigger:"자고 있는데 소리 때문에 잠에서 깼어요",
+        emotion:{label:"짜증남", icon:"😣", mood:"angry"},
+        result:"잠이 깨서 속상했지만, 서준이가 사과해서 넘어갔어요.",
+        exampleReasons:["잠을 자고 있었는데 깨서 속상해요","소리가 시끄러웠어요","더 자고 싶었는데 못 자서 아쉬워요"] },
+    resolutionExamples:["자는 친구 옆에서는 조용히 놀아요","심심하면 다른 곳에서 놀아요","깨웠으면 미안하다고 말해요"]
+  },
+  {
+    id:25, tabLabel:"㉕ 콕콕 찌르기", scene:"generic", emoji:"👉",
+    narration:"하윤이가 도현이의 팔을 계속 콕콕 찔렀어요.",
+    a:{ name:"하윤", trigger:"장난치고 관심을 끌고 싶어서 손이 먼저 나갔어요",
+        emotion:{label:"장난기", icon:"😜", mood:"excited"},
+        result:"도현이가 싫어하는 걸 보고 그만뒀어요.",
+        exampleReasons:["장난치고 싶어서","관심을 받고 싶어서","심심해서 자꾸 손이 갔어요"] },
+    b:{ name:"도현", trigger:"계속 찔려서 불편하고 신경 쓰였어요",
+        emotion:{label:"불편함", icon:"😣", mood:"angry"},
+        result:"“그만해”라고 말했고, 하윤이가 멈췄어요.",
+        exampleReasons:["계속 찔려서 불편해요","하지 말라고 했는데 계속해서 답답해요","집중이 안 돼서 신경 쓰여요"] },
+    resolutionExamples:["장난치기 전에 물어봐요","싫다고 하면 바로 멈춰요","다른 방법으로 관심을 표현해봐요"]
+  },
+  {
+    id:26, tabLabel:"㉖ 가까이 다가감", scene:"generic", emoji:"👣",
+    narration:"유나가 지호에게 자꾸 가까이 다가갔어요. 지호가 자꾸 뒤로 물러났어요.",
+    a:{ name:"유나", trigger:"친해지고 싶어서 자꾸 가까이 다가갔어요",
+        emotion:{label:"친근함", icon:"🙂", mood:"excited"},
+        result:"지호가 계속 물러나는 걸 보고 거리를 조금 두었어요.",
+        exampleReasons:["친해지고 싶어서","가까이 있고 싶어서","같이 놀고 싶어서 다가갔어요"] },
+    b:{ name:"지호", trigger:"너무 가까워서 불편한 마음이 들었어요",
+        emotion:{label:"불편함", icon:"😬", mood:"worried"},
+        result:"조금 물러나서 편한 거리를 만들었어요.",
+        exampleReasons:["너무 가까워서 불편해요","개인 공간이 필요해서","갑자기 다가와서 놀랐어요"] },
+    resolutionExamples:["친해지고 싶어도 적당한 거리를 지켜요","상대가 물러나면 그 마음을 존중해요","말로 먼저 친해지는 것도 좋아요"]
+  },
+  {
+    id:27, tabLabel:"㉗ 밀치기", scene:"generic", emoji:"🧱",
+    narration:"태오가 다은이의 블록을 무너뜨렸어요. 화가 난 다은이가 태오를 밀었어요.",
+    a:{ name:"태오", trigger:"장난치다가 실수로 다은이의 블록을 건드려 무너뜨렸어요",
+        emotion:{label:"당황함", icon:"😳", mood:"worried"},
+        result:"밀려서 놀랐지만, 자기도 잘못한 게 있다는 걸 알고 사과했어요.",
+        exampleReasons:["장난치다가 실수로 건드렸어요","일부러 그런 게 아니에요","놀다가 부딪혔어요"] },
+    b:{ name:"다은", trigger:"열심히 쌓은 블록이 무너져서 화가 나 태오를 밀었어요",
+        emotion:{label:"화남", icon:"😠", mood:"angry"},
+        result:"밀고 나서 곧 미안한 마음이 들어 태오에게 사과했어요.",
+        exampleReasons:["블록이 무너져서 화가 나서","속상한 마음에 저절로 손이 나갔어요","억울해서 밀었어요"] },
+    resolutionExamples:["화가 나도 미는 대신 말로 표현해요","실수했으면 먼저 사과해요","둘 다 마음이 풀릴 때까지 이야기해요"]
+  },
+  {
+    id:28, tabLabel:"㉘ 공 안돌려줌", scene:"generic", emoji:"⚽",
+    narration:"서준이가 유준이에게 공을 던졌어요. 유준이는 공을 계속 가지고 있고 돌려주지 않았어요.",
+    a:{ name:"서준", trigger:"같이 주고받으며 놀고 싶어서 공을 던졌어요",
+        emotion:{label:"답답함", icon:"😕", mood:"worried"},
+        result:"왜 안 돌려주는지 몰라 답답했지만, 유준이에게 물어봤어요.",
+        exampleReasons:["같이 주고받고 싶어서 던졌어요","놀이가 계속되길 바라서","공을 돌려받고 싶어요"] },
+    b:{ name:"유준", trigger:"공을 받고 나서 혼자 더 가지고 놀고 싶은 마음이 들었어요",
+        emotion:{label:"신남", icon:"😄", mood:"excited"},
+        result:"서준이가 물어봐서, 다시 주고받는 놀이로 돌아갔어요.",
+        exampleReasons:["공이 마음에 들어서 더 가지고 있었어요","주고받는 건 줄 몰랐어요","조금 더 놀고 싶었어요"] },
+    resolutionExamples:["같이 하는 놀이인지 먼저 말해줘요","궁금하면 “왜 안 줘?”라고 물어봐요","서로 생각이 다를 수 있다는 걸 알아둬요"]
+  },
+  {
+    id:29, tabLabel:"㉙ 오해한 웃음", scene:"generic", emoji:"😄",
+    narration:"하은이가 민준이를 보고 웃었어요. 민준이가 갑자기 화를 냈어요.",
+    a:{ name:"하은", trigger:"민준이 표정이 재밌어 보여서 웃었어요",
+        emotion:{label:"당황함", icon:"😳", mood:"worried"},
+        result:"화낸 이유를 몰라 당황했지만, 오해였다는 걸 알고 풀었어요.",
+        exampleReasons:["표정이 재밌어서 웃었어요","친해서 그냥 웃었어요","장난으로 웃었어요"] },
+    b:{ name:"민준", trigger:"자기를 놀리는 웃음이라고 생각했어요",
+        emotion:{label:"화남", icon:"😠", mood:"angry"},
+        result:"오해였다는 걸 알고 화가 풀렸어요.",
+        exampleReasons:["놀리는 것 같아서 화났어요","비웃는 줄 알았어요","기분 나쁘게 느껴졌어요"] },
+    resolutionExamples:["왜 웃었는지 먼저 물어봐요","오해했으면 다시 확인해봐요","놀리려던 게 아니면 설명해줘요"]
+  },
+  {
+    id:30, tabLabel:"㉚ 이상해", scene:"generic", emoji:"🎨",
+    narration:"서아가 그린 그림을 보고 채원이가 “이상해”라고 말했어요.",
+    a:{ name:"채원", trigger:"그림이 낯설게 보여서 솔직하게 말했어요",
+        emotion:{label:"무심함", icon:"😐", mood:"neutral"},
+        result:"서아가 속상해하는 걸 보고 말을 다르게 했어야 했다는 걸 알았어요.",
+        exampleReasons:["낯설어 보여서 그렇게 말했어요","생각나는 대로 말했어요","장난으로 한 말이었어요"] },
+    b:{ name:"서아", trigger:"열심히 그린 그림이 이상하다는 말을 들었어요",
+        emotion:{label:"속상함", icon:"😢", mood:"sad"},
+        result:"속상했지만 채원이의 사과를 듣고 다시 그림을 보여줬어요.",
+        exampleReasons:["열심히 그렸는데 그런 말을 들어서 속상해요","자신감이 떨어져요","다르게 말해줬으면 좋았을 것 같아요"] },
+    resolutionExamples:["느낀 점은 부드럽게 말해요","좋은 점을 먼저 찾아봐요","속상하게 했으면 사과해요"]
+  },
+  {
+    id:31, tabLabel:"㉛ 나중에", scene:"generic", emoji:"⏳",
+    narration:"은서가 하율이에게 같이 하자고 했어요. 하율이가 “나중에”라고 말했어요.",
+    a:{ name:"은서", trigger:"지금 같이 놀고 싶어서 물어봤어요",
+        emotion:{label:"아쉬움", icon:"😕", mood:"sad"},
+        result:"거절이 아니라는 걸 알고 조금 기다리기로 했어요.",
+        exampleReasons:["지금 같이 놀고 싶어서","심심해서 같이 하자고 했어요","같이 하면 더 재밌을 것 같아서"] },
+    b:{ name:"하율", trigger:"하던 일을 마저 끝내고 싶어서 나중에 하자고 했어요",
+        emotion:{label:"미안함", icon:"😅", mood:"worried"},
+        result:"하던 일을 끝내고 은서에게 가서 같이 놀았어요.",
+        exampleReasons:["하던 일을 끝내고 싶어서","지금은 바빠서","조금 이따 하고 싶어서"] },
+    resolutionExamples:["“나중에”는 거절이 아니라는 걸 기억해요","얼마나 기다리면 될지 물어봐요","기다리는 동안 다른 걸 해봐요"]
+  },
+  {
+    id:32, tabLabel:"㉜ 작품 밟기", scene:"generic", emoji:"👣",
+    narration:"강민이가 지나가다 실수로 유나의 작품을 밟았어요.",
+    a:{ name:"강민", trigger:"바닥에 놓인 작품을 못 보고 지나가다 밟았어요",
+        emotion:{label:"놀람 · 미안함", icon:"😳", mood:"worried"},
+        result:"바로 사과하고 유나가 작품을 고치는 걸 도와줬어요.",
+        exampleReasons:["작품이 있는 줄 몰랐어요","급하게 지나가다 못 봤어요","일부러 그런 게 아니에요"] },
+    b:{ name:"유나", trigger:"열심히 만든 작품이 밟혀서 망가졌어요",
+        emotion:{label:"속상함", icon:"😢", mood:"sad"},
+        result:"속상했지만 강민이가 도와줘서 같이 고쳤어요.",
+        exampleReasons:["열심히 만든 게 망가져서 속상해요","다시 만들어야 해서 아쉬워요","깜짝 놀랐어요"] },
+    resolutionExamples:["바닥에 물건이 있는지 살펴보고 다녀요","실수했으면 바로 사과하고 도와줘요","속상한 마음을 알아줘요"]
+  },
+  {
+    id:33, tabLabel:"㉝ 사과", scene:"generic", emoji:"🙏",
+    narration:"지안이가 도현이에게 먼저 사과했어요. 도현이는 아직 화가 안 풀렸어요.",
+    a:{ name:"지안", trigger:"자기 잘못을 깨닫고 먼저 사과했어요",
+        emotion:{label:"미안함", icon:"😔", mood:"sad"},
+        result:"바로 받아주지 않아서 서운했지만, 시간을 좀 더 주기로 했어요.",
+        exampleReasons:["잘못했다는 걸 알아서","마음이 불편해서 사과했어요","다시 잘 지내고 싶어서"] },
+    b:{ name:"도현", trigger:"사과를 들었지만 속상한 마음이 아직 남아 있었어요",
+        emotion:{label:"서운함", icon:"😞", mood:"sad"},
+        result:"시간이 좀 지나고 나서 지안이의 사과를 받아줬어요.",
+        exampleReasons:["아직 속상한 마음이 안 풀려서","마음이 풀리는 데 시간이 필요해서","한 번에 괜찮아지지 않아서"] },
+    resolutionExamples:["사과해도 바로 안 풀릴 수 있다는 걸 알아요","시간을 두고 기다려줘요","마음이 풀릴 때까지 지켜봐요"]
+  },
+  {
+    id:34, tabLabel:"㉞ 다른 규칙", scene:"generic", emoji:"📏",
+    narration:"하윤이와 은우가 서로 다른 규칙으로 게임을 하려고 했어요.",
+    a:{ name:"하윤", trigger:"자기가 알던 규칙이 맞다고 생각해서 그대로 하자고 했어요",
+        emotion:{label:"답답함", icon:"😕", mood:"worried"},
+        result:"이야기를 나누고 둘이 함께 새 규칙을 정했어요.",
+        exampleReasons:["원래 알던 규칙이 맞다고 생각해서","그렇게 배워서","다른 규칙은 몰랐어요"] },
+    b:{ name:"은우", trigger:"자기가 알던 규칙과 달라서 혼란스러웠어요",
+        emotion:{label:"혼란스러움", icon:"😵", mood:"worried"},
+        result:"하윤이와 이야기해서 둘 다 아는 규칙으로 정했어요.",
+        exampleReasons:["다른 규칙을 배워서","이 방법이 더 맞다고 생각해서","헷갈려서 다르게 말했어요"] },
+    resolutionExamples:["시작 전에 규칙을 같이 정해요","다르면 이야기해서 맞춰봐요","둘 다 동의하는 규칙으로 해요"]
+  },
+  {
+    id:35, tabLabel:"㉟ 거절한 호의", scene:"generic", emoji:"🤝",
+    narration:"서아가 채원이에게 “내가 이거 빌려줄게”라고 했어요. 채원이가 “괜찮아”라며 거절했어요.",
+    a:{ name:"서아", trigger:"채원이에게 도움이 되고 싶어서 먼저 빌려주겠다고 했어요",
+        emotion:{label:"머쓱함", icon:"😅", mood:"worried"},
+        result:"거절당해 머쓱했지만, 채원이의 선택을 존중하기로 했어요.",
+        exampleReasons:["도움이 되고 싶어서","친절을 베풀고 싶어서","필요할 것 같아서 물어봤어요"] },
+    b:{ name:"채원", trigger:"지금은 빌리지 않아도 괜찮은 상황이었어요",
+        emotion:{label:"편안함", icon:"🙂", mood:"neutral"},
+        result:"고맙다고 말하고 정중하게 거절했어요.",
+        exampleReasons:["지금은 필요 없어서","혼자 해보고 싶어서","이미 가지고 있어서"] },
+    resolutionExamples:["호의를 거절당해도 서운해하지 않아요","“고마워”라는 말만으로도 충분해요","다음에 필요할 때 다시 물어봐도 돼요"]
+  }
+];
+
+const STEPS = [
+  {key:"intro",     q:null},
+  {key:"ask-a",     q:"A는 왜 그랬을까?"},
+  {key:"feel-a",    q:"A는 어떤 기분일까?"},
+  {key:"result-a",  q:"그래서 A에게 무슨 일이 생겼을까?"},
+  {key:"ask-b",     q:"B는 왜 그랬을까?"},
+  {key:"feel-b",    q:"B는 어떤 기분일까?"},
+  {key:"result-b",  q:"그래서 B에게 무슨 일이 생겼을까?"},
+  {key:"resolve",   q:"다음엔 어떻게 하면 좋을까?"}
+];
+
+/* ---------- audio ---------- */
+const sfxSituation = new Audio("sfx-situation.mp3");
+const sfxStep = new Audio("sfx-step.mp3");
+function playSfx(a){ try{ a.currentTime = 0; a.play().catch(()=>{}); }catch(e){} }
+
+/* ---------- scene illustrations ---------- */
+const SKIN = "#F4C9A0";
+const HAIR = "#5B4030";
+const INK  = "#2E2419";
+
+function faceParts(mood){
+  const M = {
+    neutral:  {mouth:'<path d="M-9,8 L9,8" stroke-linecap="round"/>', brow:""},
+    excited:  {mouth:'<path d="M-11,4 Q0,18 11,4" stroke-linecap="round"/>', brow:""},
+    sad:      {mouth:'<path d="M-10,12 Q0,3 10,12" stroke-linecap="round"/>', brow:""},
+    surprised:{mouth:'<ellipse cx="0" cy="9" rx="5" ry="6"/>', brow:'<path d="M-14,-16 L-5,-16 M14,-16 L5,-16" stroke-linecap="round"/>'},
+    worried:  {mouth:'<path d="M-9,10 Q0,6 9,10" stroke-linecap="round"/>', brow:'<path d="M-14,-14 L-4,-11 M14,-14 L4,-11" stroke-linecap="round"/>'},
+    angry:    {mouth:'<path d="M-10,11 Q0,4 10,11" stroke-linecap="round"/>', brow:'<path d="M-14,-13 L-3,-8 M14,-13 L3,-8" stroke-linecap="round"/>'}
+  };
+  const m = M[mood] || M.neutral;
+  return `<g fill="none" stroke="${INK}" stroke-width="2.4">${m.brow}</g>
+          <circle cx="-13" cy="9" r="5" fill="#F0A98F" opacity=".55"/>
+          <circle cx="13" cy="9" r="5" fill="#F0A98F" opacity=".55"/>
+          <circle cx="-9" cy="-4" r="2.6" fill="${INK}"/>
+          <circle cx="9" cy="-4" r="2.6" fill="${INK}"/>
+          <g fill="none" stroke="${INK}" stroke-width="2.4">${m.mouth}</g>`;
+}
+/* side: -1(left figure, arm reaches to the right) or 1(right figure, arm reaches to the left). angle in degrees, 0 = arm down at rest */
+function arm(side, angle, color){
+  const x = side * 27;
+  const originX = side * 30;
+  return `<rect x="${x - 7}" y="150" width="14" height="36" rx="7" fill="${color}"
+    transform="rotate(${side * angle} ${originX} 152)"/>`;
+}
+function figure(cx, color, mood, label, focused, armL, armR){
+  return `
+  <g transform="translate(${cx},0)">
+    <ellipse cx="0" cy="207" rx="38" ry="9" fill="rgba(0,0,0,.14)"/>
+    <circle cx="0" cy="148" r="64" fill="none" stroke="var(--accent)" stroke-width="5" opacity="${focused ? 1 : 0}"/>
+    <rect x="-19" y="193" width="15" height="20" rx="6" fill="${HAIR}" opacity=".85"/>
+    <rect x="4" y="193" width="15" height="20" rx="6" fill="${HAIR}" opacity=".85"/>
+    ${armL}
+    ${armR}
+    <rect x="-27" y="140" width="54" height="58" rx="23" fill="${color}"/>
+    <path d="M-27,158 Q0,148 27,158 L27,168 Q0,158 -27,168 Z" fill="rgba(255,255,255,.25)"/>
+    <g transform="translate(0,110)">
+      <circle cx="0" cy="0" r="30" fill="${SKIN}"/>
+      <path d="M-29,-4 A29,29 0 0 1 29,-4 L27,-15 A29,24 0 0 0 -27,-15 Z" fill="${HAIR}"/>
+      ${faceParts(mood)}
+    </g>
+    <text x="0" y="240" text-anchor="middle" class="fig-label">${label}</text>
+  </g>`;
+}
+function sceneBase(kind){
+  const skyId = "sky-" + kind;
+  return `<defs>
+      <linearGradient id="${skyId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="var(--accent-soft)"/>
+        <stop offset="1" stop-color="var(--surface-2)"/>
+      </linearGradient>
+    </defs>
+    <rect x="0" y="0" width="480" height="260" fill="url(#${skyId})"/>
+    <circle cx="422" cy="42" r="24" fill="var(--surface)" opacity=".7"/>
+    <rect x="0" y="214" width="480" height="46" fill="var(--good-soft)"/>
+    <rect x="0" y="212" width="480" height="4" fill="var(--good)" opacity=".55"/>
+    <g stroke="var(--good)" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".55">
+      <path d="M34,214 q3,-11 6,0 M42,214 q3,-11 6,0 M50,214 q3,-11 6,0"/>
+      <path d="M400,214 q3,-11 6,0 M408,214 q3,-11 6,0 M416,214 q3,-11 6,0"/>
+    </g>`;
+}
+function sceneSVG(kind, situation, focus){
+  const moodA = focus==="a" ? situation.a.emotion.mood : "neutral";
+  const moodB = focus==="b" ? situation.b.emotion.mood : "neutral";
+  let armA = ["", ""], armB = ["", ""], prop = "";
+
+  if(kind === "toy"){
+    armA = [arm(-1, 10, "var(--a)"), arm(1, -55, "var(--a)")];   /* A reaches toward the toy */
+    armB = [arm(-1, 15, "var(--b)"), arm(1, 15, "var(--b)")];
+    prop = `
+      <g transform="translate(240,192)">
+        <rect x="-24" y="-16" width="48" height="18" rx="7" fill="var(--good)"/>
+        <rect x="-15" y="-27" width="26" height="13" rx="4" fill="var(--good)"/>
+        <rect x="-10" y="-24" width="8" height="8" rx="2" fill="#fff" opacity=".8"/>
+        <rect x="4" y="-24" width="8" height="8" rx="2" fill="#fff" opacity=".8"/>
+        <circle cx="-13" cy="4" r="8" fill="${INK}"/><circle cx="-13" cy="4" r="3" fill="#fff" opacity=".6"/>
+        <circle cx="13" cy="4" r="8" fill="${INK}"/><circle cx="13" cy="4" r="3" fill="#fff" opacity=".6"/>
+        <path d="M-44,-18 L-28,-12 M-44,-6 L-26,-4" stroke="var(--ink-muted)" stroke-width="3" stroke-linecap="round" opacity=".55"/>
+      </g>`;
+  } else if(kind === "ball"){
+    armA = [arm(-1, 15, "var(--a)"), arm(1, -95, "var(--a)")];   /* A just threw, arm up */
+    armB = [arm(-1, 15, "var(--b)"), arm(1, 15, "var(--b)")];
+    prop = `
+      <path d="M172,150 Q240,55 302,148" fill="none" stroke="var(--ink-muted)" stroke-width="2.5" stroke-dasharray="6 8" opacity=".6"/>
+      <g transform="translate(298,148)">
+        <circle r="16" fill="#fff" stroke="var(--a)" stroke-width="3"/>
+        <path d="M-11,-4 Q0,5 11,-4 M-9,8 Q0,3 9,8" stroke="var(--a)" stroke-width="2" fill="none"/>
+      </g>
+      <g stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" opacity=".7">
+        <path d="M328,118 L340,106 M334,132 L349,128 M326,144 L338,150"/>
+      </g>`;
+  } else if(kind === "push"){
+    armA = [arm(-1, 20, "var(--a)"), arm(1, -35, "var(--a)")];   /* A pushes forward */
+    armB = [arm(-1, 0, "var(--b)"), arm(1, 40, "var(--b)")];      /* B off-balance */
+    prop = `
+      <g opacity=".9">
+        <rect x="146" y="198" width="36" height="11" rx="5" fill="var(--surface)" stroke="var(--line)"/>
+        <text x="164" y="207" text-anchor="middle" font-size="9" fill="var(--ink-muted)" font-family="Noto Sans KR, sans-serif">3</text>
+        <rect x="186" y="198" width="36" height="11" rx="5" fill="var(--surface)" stroke="var(--line)"/>
+        <text x="204" y="207" text-anchor="middle" font-size="9" fill="var(--ink-muted)" font-family="Noto Sans KR, sans-serif">2</text>
+        <rect x="226" y="198" width="36" height="11" rx="5" fill="var(--accent-soft)" stroke="var(--accent)"/>
+        <text x="244" y="207" text-anchor="middle" font-size="9" fill="var(--accent)" font-family="Noto Sans KR, sans-serif" font-weight="700">1</text>
+      </g>
+      <path d="M92,150 L118,150" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" marker-end="url(#arrow)"/>
+      <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--accent)"/></marker></defs>`;
+  } else {
+    /* generic scene — covers most of the 35 situations with one big icon instead of bespoke props */
+    armA = [arm(-1, 12, "var(--a)"), arm(1, 12, "var(--a)")];
+    armB = [arm(-1, 12, "var(--b)"), arm(1, 12, "var(--b)")];
+    prop = `<text x="240" y="160" font-size="58" text-anchor="middle" dominant-baseline="middle">${situation.emoji || "❓"}</text>`;
+  }
+
+  const figA = figure(140, "var(--a)", moodA, situation.a.name, focus==="a", armA[0], armA[1]);
+  const figB = figure(340, "var(--b)", moodB, situation.b.name, focus==="b", armB[0], armB[1]);
+
+  return `<svg viewBox="0 0 480 260" xmlns="http://www.w3.org/2000/svg">
+    ${sceneBase(kind)}
+    ${prop}
+    ${figB}
+    ${figA}
+  </svg>`;
+}
+
+/* ---------- state ---------- */
+let state = { sit:0, step:0, revealed:false };
+
+function chip(text){ return `<span class="chip">${text}</span>`; }
+
+/* ---------- progress (per-viewer, resumes at the next unplayed situation) ---------- */
+const PROGRESS_KEY = "whyDidThat.completedCount";
+function getProgress(){
+  try{ return parseInt(localStorage.getItem(PROGRESS_KEY), 10) || 0; }catch(e){ return 0; }
+}
+function saveProgress(n){
+  try{ localStorage.setItem(PROGRESS_KEY, String(n)); }catch(e){}
+}
+
+/* ---------- badge — tell a parent whose perspective this card shows ---------- */
+function badgesFor(step, sit){
+  if(step.key.endsWith("-a")) return `<span class="badge a">👤 ${sit.a.name}의 관점</span>`;
+  if(step.key.endsWith("-b")) return `<span class="badge b">👤 ${sit.b.name}의 관점</span>`;
+  return "";
+}
+
+/* 이름 받침 유무에 따라 "이가/가"를 붙인다 (하람 → 하람이가, 소이 → 소이가) */
+function hasBatchim(name){
+  const code = name.charCodeAt(name.length - 1) - 0xAC00;
+  if(code < 0 || code > 11171) return false;
+  return code % 28 !== 0;
+}
+function withSubject(name){ return hasBatchim(name) ? `${name}이가` : `${name}가`; }
+
+function questionText(step, sit){
+  if(step.key === "ask-a") return `${withSubject(sit.a.name)} 왜 그랬는지 말해 보세요.`;
+  if(step.key === "ask-b") return `${withSubject(sit.b.name)} 왜 그랬는지 말해 보세요.`;
+  if(step.key === "resolve") return "다음엔 어떻게 하면 좋을지 말해 보세요.";
+  return step.q.replace("A", sit.a.name).replace("B", sit.b.name);
+}
+
+function primaryLabel(step, isLastStepOfLastSit){
+  if(!state.revealed) return "얘기했어요, 확인!";
+  if(isLastStepOfLastSit) return "처음부터 다시 보기";
+  if(step.key === "resolve") return "다음 상황 ▶";
+  return "다음 단계로 →";
+}
+
+function render(){
+  const sit = situations[state.sit];
+  const step = STEPS[state.step];
+  const focus = step.key.endsWith("-a") ? "a" : step.key.endsWith("-b") ? "b" : null;
+
+  /* situation nav */
+  const total = situations.length;
+  document.getElementById("sitIndexLabel").textContent = state.sit + 1;
+  document.getElementById("sitTotalLabel").textContent = total;
+  document.getElementById("sitTitleLabel").textContent = sit.tabLabel;
+  document.getElementById("sitTitleLabel").title = sit.tabLabel;
+
+  /* 전체 목록 모달이 열려 있으면 내용도 같이 갱신 */
+  if(!document.getElementById("sitModal").hidden) renderSitGrid();
+
+  /* progress dots */
+  document.getElementById("progress").innerHTML = STEPS.map((s,i) => {
+    let cls = "dot";
+    if(s.key.endsWith("-a")) cls += " a";
+    if(s.key.endsWith("-b")) cls += " b";
+    if(i < state.step) cls += " done";
+    if(i === state.step) cls += " cur";
+    return `<span class="${cls}"></span>`;
+  }).join("");
+
+  /* scene */
+  document.getElementById("sceneFrame").innerHTML = sceneSVG(sit.scene, sit, focus);
+
+  /* intro caption — sits above the illustration, only shown on step ① */
+  const introCaption = document.getElementById("introCaption");
+  if(step.key === "intro"){
+    introCaption.hidden = false;
+    introCaption.innerHTML = `<p class="tag">무슨 일이 일어났을까요?</p><p class="big">${sit.narration}</p>`;
+  } else {
+    introCaption.hidden = true;
+    introCaption.innerHTML = "";
+  }
+
+  /* question */
+  document.getElementById("questionBox").innerHTML = step.key === "intro"
+    ? ""
+    : `<p class="question">${questionText(step, sit)}</p>`;
+
+  /* interactive area */
+  const box = document.getElementById("interact");
+  const primaryBtn = document.getElementById("primaryBtn");
+  const backBtn = document.getElementById("backBtn");
+  backBtn.style.visibility = (state.step === 0) ? "hidden" : "visible";
+
+  if(step.key === "intro"){
+    box.innerHTML = "";
+    primaryBtn.textContent = "다음 →";
+  }
+  else if(step.key === "ask-a" || step.key === "ask-b" || step.key === "resolve"){
+    const person = step.key === "ask-a" ? sit.a : step.key === "ask-b" ? sit.b : null;
+    const examples = person ? person.exampleReasons : sit.resolutionExamples;
+    const isLastStepOfLastSit = (step.key === "resolve" && state.sit === situations.length - 1);
+    box.innerHTML = `
+      <div class="examples" id="examplesBox" ${state.revealed ? "" : "hidden"}>
+        <div class="examples-label">이렇게 생각한 친구들도 있어요</div>
+        <div class="reasons">${examples.map(chip).join("")}</div>
+        ${isLastStepOfLastSit ? '<p class="note">35개 상황을 모두 확인했어요! 처음부터 다시 해볼까요?</p>' : ""}
+      </div>`;
+    primaryBtn.textContent = primaryLabel(step, isLastStepOfLastSit);
+  }
+  else { /* feel-a / feel-b / result-a / result-b */
+    const person = step.key.endsWith("-a") ? sit.a : sit.b;
+    const isFeel = step.key.startsWith("feel");
+    if(!state.revealed){
+      box.innerHTML = `<div class="flipcard" id="flipTarget"><span class="tap-label">👉 눌러서 확인하기</span></div>`;
+      primaryBtn.textContent = "";
+    } else {
+      box.innerHTML = isFeel
+        ? `<div class="reveal ${focus}"><span class="icon">${person.emotion.icon}</span><span class="label">${person.emotion.label}</span></div>`
+        : `<div class="reveal ${focus}"><span class="text">${person.result}</span></div>`;
+      primaryBtn.textContent = "다음 →";
+    }
+  }
+
+  primaryBtn.style.visibility = primaryBtn.textContent ? "visible" : "hidden";
+
+  /* badge */
+  const badgesEl = document.getElementById("badges");
+  const badgeHtml = badgesFor(step, sit);
+  badgesEl.innerHTML = badgeHtml;
+  badgesEl.hidden = !badgeHtml;
+}
+
+function goToStep(newSit, newStep, playSituationSfx){
+  state.sit = newSit;
+  state.step = newStep;
+  state.revealed = false;
+  render();
+  if(playSituationSfx) playSfx(sfxSituation);
+  else playSfx(sfxStep);
+}
+
+/* ---------- 전체 상황 목록 모달 (35개가 되어도 번호 타일 격자로 표시) ---------- */
+function renderSitGrid(){
+  const progress = getProgress();
+  document.getElementById("modalProgressLabel").textContent =
+    `전체 상황 (${Math.min(progress, situations.length)}/${situations.length} 완료)`;
+  document.getElementById("sitGrid").innerHTML = situations.map((s, i) => {
+    const done = i < progress;
+    const active = i === state.sit;
+    const cls = ["sit-tile", done ? "done" : "", active ? "active" : ""].filter(Boolean).join(" ");
+    return `<button class="${cls}" data-idx="${i}" title="${s.tabLabel}" type="button">${done ? "✓" : i + 1}</button>`;
+  }).join("");
+}
+function openSitModal(){
+  renderSitGrid();
+  document.getElementById("sitModal").hidden = false;
+}
+function closeSitModal(){
+  document.getElementById("sitModal").hidden = true;
+}
+
+document.getElementById("allSitBtn").addEventListener("click", openSitModal);
+document.getElementById("closeModalBtn").addEventListener("click", closeSitModal);
+document.getElementById("sitModalBackdrop").addEventListener("click", closeSitModal);
+document.getElementById("sitGrid").addEventListener("click", (e) => {
+  const t = e.target.closest(".sit-tile");
+  if(!t) return;
+  const idx = Number(t.dataset.idx);
+  closeSitModal();
+  if(idx === state.sit) return;
+  goToStep(idx, 0, true);
+});
+document.getElementById("prevSitBtn").addEventListener("click", () => {
+  goToStep((state.sit - 1 + situations.length) % situations.length, 0, true);
+});
+document.getElementById("nextSitBtn").addEventListener("click", () => {
+  goToStep((state.sit + 1) % situations.length, 0, true);
+});
+
+document.getElementById("resetBtn").addEventListener("click", () => {
+  if(!confirm("지금까지 마친 상황 기록을 모두 초기화할까요?")) return;
+  saveProgress(0);
+  goToStep(0, 0, true);
+});
+
+document.getElementById("backBtn").addEventListener("click", () => {
+  if(state.step === 0) return;
+  goToStep(state.sit, state.step - 1, false);
+});
+
+document.getElementById("interact").addEventListener("click", (e) => {
+  if(e.target.closest("#flipTarget")){
+    state.revealed = true;
+    render();
+  }
+});
+
+document.getElementById("primaryBtn").addEventListener("click", () => {
+  const step = STEPS[state.step];
+  const isAsk = step.key === "ask-a" || step.key === "ask-b" || step.key === "resolve";
+
+  if(isAsk && !state.revealed){
+    /* reveal examples in place, without rebuilding the textarea (would erase what was typed) */
+    state.revealed = true;
+    const examplesBox = document.getElementById("examplesBox");
+    if(examplesBox) examplesBox.hidden = false;
+    const isLastStepOfLastSit = (step.key === "resolve" && state.sit === situations.length - 1);
+    const primaryBtn = document.getElementById("primaryBtn");
+    primaryBtn.textContent = primaryLabel(step, isLastStepOfLastSit);
+    primaryBtn.style.visibility = "visible";
+    return;
+  }
+  if(step.key === "resolve"){
+    saveProgress(Math.max(getProgress(), state.sit + 1));
+    const isLast = state.sit === situations.length - 1;
+    goToStep(isLast ? 0 : state.sit + 1, 0, true);
+    return;
+  }
+  if(state.step < STEPS.length - 1){
+    goToStep(state.sit, state.step + 1, false);
+  }
+});
+
+/* ---------- boot (carry state across republish) ---------- */
+function start(initial){
+  const resumeAt = Math.min(getProgress(), situations.length - 1);
+  state = Object.assign({ sit:resumeAt, step:0, revealed:false }, initial || {});
+  render();
+}
+if(window.claude?.hot){ window.claude.hot.snapshot(() => state); }
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
